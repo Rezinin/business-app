@@ -21,7 +21,10 @@ export default function Page() {
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 You&apos;ve successfully signed up. Please check your email to
-                confirm your account before signing in.
+                confirm your account.
+              </p>
+              <p className="text-sm text-muted-foreground mt-4">
+                <strong>Note:</strong> After confirming your email, your account will be pending verification by a manager. You will not be able to access the dashboard until verified.
               </p>
             </CardContent>
           </Card>
