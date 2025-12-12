@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "Hajia Salima's Collection",
   description: "Premium Inventory & Sales Management System",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 const geistSans = Geist({

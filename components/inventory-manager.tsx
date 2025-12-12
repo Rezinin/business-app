@@ -12,8 +12,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash, Edit, Search } from "lucide-react";
+import { MoreHorizontal, Trash, Edit, Search, Info } from "lucide-react";
 import { RecordSaleButton } from "./record-sale-button";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 
 export function InventoryManager({ inventory }: { inventory: any[] }) {
   const [isEditing, setIsEditing] = useState<string | null>(null);
@@ -128,17 +133,34 @@ export function InventoryManager({ inventory }: { inventory: any[] }) {
                   </div>
                 </form>
               ) : (
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0">
                   <div>
-                    <h3 className="font-bold text-lg">{item.name}</h3>
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                        {item.name}
+                        {item.description && (
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <button className="p-1 hover:bg-muted rounded-full transition-colors">
+                                        <Info className="h-4 w-4 text-muted-foreground" />
+                                        <span className="sr-only">Info</span>
+                                    </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-60 text-sm p-3">
+                                    <p>{item.description}</p>
+                                </PopoverContent>
+                            </Popover>
+                        )}
+                    </h3>
                     <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
                     <div className="mt-2 space-x-4 text-sm">
                       <span>Price: ₵{item.price}</span>
                       <span>Qty: {item.quantity}</span>
                     </div>
                   </div>
-                  <div className="flex gap-2 items-center">
-                    <RecordSaleButton product={item} />
+                  <div className="flex gap-2 items-center w-full md:w-auto">
+                    <div className="flex-1 md:flex-none">
+                        <RecordSaleButton product={item} />
+                    </div>
                     
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

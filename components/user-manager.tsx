@@ -51,7 +51,7 @@ export function UserManager({ users }: { users: any[] }) {
       <div className="grid gap-4">
         {users.map((user) => (
           <Card key={user.id}>
-            <CardContent className="p-6 flex justify-between items-center">
+            <CardContent className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0">
               <div>
                 <div className="flex items-center gap-2">
                     <h3 className="font-bold">{user.full_name || "Unknown Name"}</h3>

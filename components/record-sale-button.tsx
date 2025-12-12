@@ -144,7 +144,12 @@ export function RecordSaleButton({ product }: { product: Product }) {
                             checked={isCredit} 
                             onCheckedChange={(c) => setIsCredit(!!c)} 
                         />
-                        <Label htmlFor="credit">Sell on Credit / Partial Payment</Label>
+                        <div className="grid gap-1.5 leading-none">
+                            <Label htmlFor="credit">Sell on Credit / Partial Payment</Label>
+                            <p className="text-xs text-muted-foreground">
+                                Check this if the customer is not paying the full amount now.
+                            </p>
+                        </div>
                     </div>
 
                     {isCredit && (

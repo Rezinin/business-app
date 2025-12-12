@@ -4,7 +4,12 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { RecordSaleButton } from "./record-sale-button";
-import { Search } from "lucide-react";
+import { Search, Info } from "lucide-react";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 
 export function ProductGrid({ inventory }: { inventory: any[] }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -24,13 +29,31 @@ export function ProductGrid({ inventory }: { inventory: any[] }) {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-8"
         />
+        <p className="text-xs text-muted-foreground mt-2 ml-1">
+            Tip: Start typing to instantly filter products by name or SKU.
+        </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredInventory.map((item) => (
           <Card key={item.id}>
             <CardHeader>
-              <CardTitle>{item.name}</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>{item.name}</span>
+                {item.description && (
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button className="p-1 hover:bg-muted rounded-full transition-colors">
+                                <Info className="h-4 w-4 text-muted-foreground" />
+                                <span className="sr-only">Info</span>
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-60 text-sm p-3">
+                            <p>{item.description}</p>
+                        </PopoverContent>
+                    </Popover>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex justify-between items-center mb-2">

@@ -169,9 +169,13 @@ export function DailySales({ userId }: DailySalesProps) {
                 ₵{totalSales.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">collected</span>
             </span>
         </CardTitle>
+        <p className="text-sm text-muted-foreground">
+            Showing sales records for {new Date(selectedDate).toLocaleDateString()}.
+        </p>
       </CardHeader>
       <CardContent>
-        <Table>
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Time</TableHead>
@@ -224,7 +228,8 @@ export function DailySales({ userId }: DailySalesProps) {
               </TableRow>
             )))}
           </TableBody>
-        </Table>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

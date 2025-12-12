@@ -60,10 +60,10 @@ export default async function ManagerDashboard() {
   const pendingUsersCount = sortedProfiles.filter((p) => !p.verified).length || 0;
 
   return (
-    <div className="flex flex-col gap-6 p-8 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center">
+    <div className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0">
         <div>
-            <h1 className="text-3xl font-bold">Manager Dashboard</h1>
+            <h1 className="text-2xl md:text-3xl font-bold">Manager Dashboard</h1>
             <p className="text-sm text-muted-foreground">
                 Logged in as: <span className="font-medium text-foreground">{currentProfile?.full_name}</span> 
                 <span className="mx-2">•</span>
@@ -72,10 +72,10 @@ export default async function ManagerDashboard() {
                 </span>
             </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <Dialog>
                 <DialogTrigger asChild>
-                    <Button variant="outline" className={pendingUsersCount > 0 ? "border-red-500 text-red-600 hover:text-red-700 hover:bg-red-50" : ""}>
+                    <Button variant="outline" className={`flex-1 md:flex-none ${pendingUsersCount > 0 ? "border-red-500 text-red-600 hover:text-red-700 hover:bg-red-50" : ""}`}>
                         Manage Users
                         {pendingUsersCount > 0 && (
                             <span className="ml-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
@@ -84,7 +84,7 @@ export default async function ManagerDashboard() {
                         )}
                     </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto w-[95vw] md:w-full">
                     <DialogHeader>
                         <DialogTitle>User Management</DialogTitle>
                     </DialogHeader>
@@ -92,11 +92,11 @@ export default async function ManagerDashboard() {
                 </DialogContent>
             </Dialog>
 
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" className="flex-1 md:flex-none">
                 <Link href="/dashboard/salesperson">View as Salesperson</Link>
             </Button>
-            <form action="/auth/signout" method="post">
-                <Button variant="destructive">Sign Out</Button>
+            <form action="/auth/signout" method="post" className="flex-1 md:flex-none">
+                <Button variant="destructive" className="w-full">Sign Out</Button>
             </form>
         </div>
       </div>
@@ -138,7 +138,7 @@ export default async function ManagerDashboard() {
 
       <div className="mt-8">
         <h2 className="text-2xl font-bold mb-4">Debt Management</h2>
-        <DebtManager />
+        <DebtManager canDelete={true} />
       </div>
     </div>
   );

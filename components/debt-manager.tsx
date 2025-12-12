@@ -62,7 +62,7 @@ interface PaymentRecord {
     }
 }
 
-export function DebtManager() {
+export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
     const [customers, setCustomers] = useState<Customer[]>([])
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
     const [debts, setDebts] = useState<DebtSale[]>([])
@@ -172,8 +172,8 @@ export function DebtManager() {
 
     return (
         <div className="space-y-4">
-            <div className="bg-blue-50 p-4 rounded-md border border-blue-200 text-sm text-blue-800">
-                <strong>How to add debt:</strong> To create a new debt record, go to the Inventory list, click "Record Sale" on a product, check "Sell on Credit", and select or create a customer.
+            <div className="bg-muted/50 p-4 rounded-md border border-border text-sm text-muted-foreground">
+                <strong>Note:</strong> To add a new debt, go to the main dashboard, click "Record Sale" on a product, and select "Sell on Credit".
             </div>
             
             <div className="grid gap-6 md:grid-cols-2">
@@ -242,6 +242,7 @@ export function DebtManager() {
                         {!selectedCustomer ? (
                             <p className="text-muted-foreground">Select a customer to view details.</p>
                         ) : view === 'debts' ? (
+                            <div className="overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -279,6 +280,7 @@ export function DebtManager() {
                                                     Pay Item
                                                 </Button>
                                                 
+                                                {canDelete && (
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button variant="ghost" className="h-8 w-8 p-0">
@@ -304,12 +306,15 @@ export function DebtManager() {
                                                         </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     )))}
                                 </TableBody>
                             </Table>
+                            </div>
                         ) : (
+                            <div className="overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -337,6 +342,7 @@ export function DebtManager() {
                                     )))}
                                 </TableBody>
                             </Table>
+                            </div>
                         )}
                     </CardContent>
                 </Card>
