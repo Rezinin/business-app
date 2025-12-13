@@ -14,16 +14,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Trash, Edit, Search, Info } from "lucide-react";
 import { RecordSaleButton } from "./record-sale-button";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
 
 export function InventoryManager({ inventory }: { inventory: any[] }) {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  const toggleDescription = (id: string) => {
+      const newSet = new Set(expandedItems);
+      if (newSet.has(id)) {
+          newSet.delete(id);
+      } else {
+          newSet.add(id);
+      }
+      setExpandedItems(newSet);
+  }
 
   const filteredInventory = inventory.filter((item) =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -138,19 +144,21 @@ export function InventoryManager({ inventory }: { inventory: any[] }) {
                     <h3 className="font-bold text-lg flex items-center gap-2">
                         {item.name}
                         {item.description && (
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <button className="p-1 hover:bg-muted rounded-full transition-colors">
-                                        <Info className="h-4 w-4 text-muted-foreground" />
-                                        <span className="sr-only">Info</span>
-                                    </button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-60 text-sm p-3">
-                                    <p>{item.description}</p>
-                                </PopoverContent>
-                            </Popover>
+                            <button 
+                                onClick={() => toggleDescription(item.id)}
+                                className="p-1 hover:bg-muted rounded-full transition-colors"
+                                title="Toggle description"
+                            >
+                                <Info className={`h-4 w-4 ${expandedItems.has(item.id) ? "text-primary" : "text-muted-foreground"}`} />
+                                <span className="sr-only">Info</span>
+                            </button>
                         )}
                     </h3>
+                    {expandedItems.has(item.id) && item.description && (
+                        <div className="mt-2 mb-2 p-3 bg-muted/50 rounded-md text-sm text-muted-foreground border border-border max-w-md">
+                            {item.description}
+                        </div>
+                    )}
                     <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
                     <div className="mt-2 space-x-4 text-sm">
                       <span>Price: ₵{item.price}</span>
