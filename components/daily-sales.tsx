@@ -30,6 +30,7 @@ interface Sale {
     amount_paid: number;
     created_at: string;
     salesperson_id: string;
+    product_name?: string;
     inventory: {
         name: string;
         sku: string;
@@ -77,6 +78,7 @@ export function DailySales({ userId }: DailySalesProps) {
           amount_paid,
           created_at,
           salesperson_id,
+          product_name,
           inventory (
             name,
             sku
@@ -207,7 +209,9 @@ export function DailySales({ userId }: DailySalesProps) {
                   {new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </TableCell>
                 <TableCell>
-                    <div className="font-medium">{sale.inventory?.name || "Unknown Product"}</div>
+                    <div className="font-medium">
+                        {sale.inventory?.name || (sale.product_name ? `${sale.product_name} (deleted)` : "Unknown Product")}
+                    </div>
                     <div className="text-xs text-muted-foreground">{sale.inventory?.sku}</div>
                 </TableCell>
                 <TableCell>{sale.quantity}</TableCell>

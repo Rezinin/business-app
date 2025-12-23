@@ -90,6 +90,15 @@ export async function recordSale(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
+  // Fetch product name
+  const { data: product } = await supabase
+    .from("inventory")
+    .select("name")
+    .eq("id", productId)
+    .single();
+    
+  const productName = product?.name;
+
   const totalPrice = price * quantity;
   const paid = amountPaid ?? totalPrice; // Default to full payment if not specified
   const status = paid >= totalPrice ? 'paid' : 'pending';
@@ -97,6 +106,7 @@ export async function recordSale(
   // 1. Record the sale
   const { data: sale, error: saleError } = await supabase.from("sales").insert({
     product_id: productId,
+    product_name: productName,
     quantity: quantity,
     total_price: totalPrice,
     salesperson_id: user.id,
