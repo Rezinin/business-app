@@ -63,8 +63,8 @@ export function ProductGrid({ inventory }: { inventory: any[] }) {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-8"
         />
-        <p className="text-xs text-muted-foreground mt-2 ml-1">
-            Tip: Start typing to instantly filter products by name or SKU.
+        <p className="text-xs text-gray-700 dark:text-gray-300 mt-2 ml-1 font-medium">
+            💡 Tip: Start typing to instantly filter products by name or SKU.
         </p>
       </div>
 

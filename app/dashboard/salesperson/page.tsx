@@ -28,34 +28,56 @@ export default async function SalespersonDashboard() {
   const { data: inventory } = await supabase.from("inventory").select("*");
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0">
-        <h1 className="text-2xl md:text-3xl font-bold">Sales Dashboard</h1>
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
-            <Dialog>
+    <div className="min-h-screen bg-gradient-to-br from-white via-lime-50 to-white relative">
+      {/* Nature Background Image */}
+      <div 
+        className="fixed inset-0 z-0 opacity-4 pointer-events-none"
+        style={{
+          backgroundImage: 'url("https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2000&auto=format&fit=crop")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      />
+      
+      {/* Header */}
+      <div className="bg-white border-b border-lime-100 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Sales Dashboard</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Record and track sales transactions
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              <Dialog>
                 <DialogTrigger asChild>
-                    <Button variant="outline" className="flex-1 md:flex-none">Manage Debts</Button>
+                  <Button className="flex-1 md:flex-none bg-lime-600 hover:bg-lime-700 text-white rounded-lg">
+                    Manage Debts
+                  </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto w-[95vw] md:w-full">
-                    <DialogHeader>
-                        <DialogTitle>Debt Management</DialogTitle>
-                    </DialogHeader>
-                    <DebtManager />
+                  <DialogHeader>
+                    <DialogTitle>Debt Management</DialogTitle>
+                  </DialogHeader>
+                  <DebtManager />
                 </DialogContent>
-            </Dialog>
+              </Dialog>
 
-             <Button asChild variant="outline" className="flex-1 md:flex-none">
+              <Button asChild variant="outline" className="flex-1 md:flex-none border-lime-600 text-lime-700 hover:text-white hover:bg-lime-600 rounded-lg transition-colors">
                 <Link href="/dashboard/manager">View as Manager</Link>
-            </Button>
-            <form action="/auth/signout" method="post" className="flex-1 md:flex-none">
-                <Button variant="destructive" className="w-full">Sign Out</Button>
-            </form>
+              </Button>
+              <form action="/auth/signout" method="post" className="flex-1 md:flex-none">
+                <Button variant="destructive" className="w-full rounded-lg">Sign Out</Button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
 
-      <ProductGrid inventory={inventory || []} />
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-8 relative z-10">
+        <ProductGrid inventory={inventory || []} />
 
-      <div className="mt-8">
         <DailySales />
       </div>
     </div>

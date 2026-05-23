@@ -9,8 +9,8 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Hajia Salima's Collection",
-  description: "Premium Inventory & Sales Management System",
+  title: "Rezinin Enterprise",
+  description: "Professional Inventory & Sales Management System",
 };
 
 export const viewport: Viewport = {

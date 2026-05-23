@@ -168,10 +168,10 @@ export function DailySales({ userId }: DailySalesProps) {
                 />
             </div>
             <span className="text-2xl font-bold text-green-600">
-                ₵{totalSales.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">collected</span>
+                ₵{totalSales.toFixed(2)} <span className="text-sm font-normal text-gray-700 dark:text-gray-400">collected</span>
             </span>
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-gray-700 dark:text-gray-300">
             Showing sales records for {new Date(selectedDate).toLocaleDateString()}.
         </p>
       </CardHeader>
@@ -198,7 +198,7 @@ export function DailySales({ userId }: DailySalesProps) {
                 </TableRow>
             ) : sales.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={isManager ? 7 : 6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={isManager ? 7 : 6} className="text-center text-gray-700 dark:text-gray-300 py-8">
                         No sales recorded for this date.
                     </TableCell>
                 </TableRow>
@@ -212,7 +212,7 @@ export function DailySales({ userId }: DailySalesProps) {
                     <div className="font-medium">
                         {sale.inventory?.name || (sale.product_name ? `${sale.product_name} (deleted)` : "Unknown Product")}
                     </div>
-                    <div className="text-xs text-muted-foreground">{sale.inventory?.sku}</div>
+                    <div className="text-xs text-gray-700 dark:text-gray-400">{sale.inventory?.sku}</div>
                 </TableCell>
                 <TableCell>{sale.quantity}</TableCell>
                 <TableCell>₵{sale.total_price.toFixed(2)}</TableCell>

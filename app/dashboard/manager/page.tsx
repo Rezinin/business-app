@@ -60,85 +60,101 @@ export default async function ManagerDashboard() {
   const pendingUsersCount = sortedProfiles.filter((p) => !p.verified).length || 0;
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0">
-        <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Manager Dashboard</h1>
-            <p className="text-sm text-muted-foreground">
-                Logged in as: <span className="font-medium text-foreground">{currentProfile?.full_name}</span> 
-                <span className="mx-2">•</span>
-                Role: <span className={`font-medium ${currentProfile?.role === 'manager' || !currentProfile?.role ? 'text-green-600' : 'text-red-500'}`}>
-                    {currentProfile?.role || 'Developer (No Role)'}
-                </span>
-            </p>
-        </div>
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
-            <Dialog>
+    <div className="min-h-screen bg-gradient-to-br from-white via-lime-50 to-white relative">
+      {/* Nature Background Image */}
+      <div 
+        className="fixed inset-0 z-0 opacity-4 pointer-events-none"
+        style={{
+          backgroundImage: 'url("https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=2000&auto=format&fit=crop")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      />
+      
+      {/* Header */}
+      <div className="bg-white border-b border-lime-100 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Manager Dashboard</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Welcome, <span className="font-semibold text-lime-700">{currentProfile?.full_name}</span>
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              <Dialog>
                 <DialogTrigger asChild>
-                    <Button variant="outline" className={`flex-1 md:flex-none ${pendingUsersCount > 0 ? "border-red-500 text-red-600 hover:text-red-700 hover:bg-red-50" : ""}`}>
-                        Manage Users
-                        {pendingUsersCount > 0 && (
-                            <span className="ml-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
-                                {pendingUsersCount}
-                            </span>
-                        )}
-                    </Button>
+                  <Button className={`flex-1 md:flex-none bg-lime-600 hover:bg-lime-700 text-white rounded-lg ${pendingUsersCount > 0 ? "ring-2 ring-red-400" : ""}`}>
+                    Manage Users
+                    {pendingUsersCount > 0 && (
+                      <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                        {pendingUsersCount}
+                      </span>
+                    )}
+                  </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto w-[95vw] md:w-full">
-                    <DialogHeader>
-                        <DialogTitle>User Management</DialogTitle>
-                    </DialogHeader>
-                    <UserManager users={sortedProfiles} />
+                  <DialogHeader>
+                    <DialogTitle>User Management</DialogTitle>
+                  </DialogHeader>
+                  <UserManager users={sortedProfiles} />
                 </DialogContent>
-            </Dialog>
+              </Dialog>
 
-            <Button asChild variant="outline" className="flex-1 md:flex-none">
+              <Button asChild variant="outline" className="flex-1 md:flex-none border-lime-600 text-lime-700 hover:text-white hover:bg-lime-600 rounded-lg transition-colors">
                 <Link href="/dashboard/salesperson">View as Salesperson</Link>
-            </Button>
-            <form action="/auth/signout" method="post" className="flex-1 md:flex-none">
-                <Button variant="destructive" className="w-full">Sign Out</Button>
-            </form>
+              </Button>
+              <form action="/auth/signout" method="post" className="flex-1 md:flex-none">
+                <Button variant="destructive" className="w-full rounded-lg">Sign Out</Button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{productCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{lowStockCount}</div>
-            <p className="text-xs text-muted-foreground">Items with &lt; 10 qty</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₵{totalValue.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-8 relative z-10">
+        {/* Stats Row */}
+        <div className="grid gap-6 md:grid-cols-3">
+          <Card className="bg-white border-0 shadow-md rounded-xl hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Products</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-lime-700">{productCount}</div>
+              <p className="text-xs text-gray-500 mt-1">in inventory</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white border-0 shadow-md rounded-xl hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-gray-600">Low Stock Items</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-orange-600">{lowStockCount}</div>
+              <p className="text-xs text-gray-500 mt-1">items with &lt; 10 qty</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white border-0 shadow-md rounded-xl hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Value</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-lime-700">₵{totalValue.toFixed(2)}</div>
+              <p className="text-xs text-gray-500 mt-1">inventory value</p>
+            </CardContent>
+          </Card>
+        </div>
 
-      <div className="grid gap-8">
-        <InventoryManager inventory={inventory || []} />
-      </div>
+        {/* Sections */}
+        <div className="space-y-8">
+          <InventoryManager inventory={inventory || []} />
+        </div>
 
-      <DailySales />
+        <DailySales />
 
-      <div className="mt-8">
-        <h2 className="text-2xl font-bold mb-4">Debt Management</h2>
-        <DebtManager canDelete={true} />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Debt Management</h2>
+          <DebtManager canDelete={true} />
+        </div>
       </div>
     </div>
   );

@@ -172,8 +172,8 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
 
     return (
         <div className="space-y-4">
-            <div className="bg-muted/50 p-4 rounded-md border border-border text-sm text-muted-foreground">
-                <strong>Note:</strong> To add a new debt, go to the main dashboard, click "Record Sale" on a product, and select "Sell on Credit".
+            <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-md border border-blue-200 dark:border-blue-800 text-sm text-blue-900 dark:text-blue-100">
+                <strong>ℹ️ Note:</strong> To add a new debt, go to the main dashboard, click "Record Sale" on a product, and select "Sell on Credit".
             </div>
             
             <div className="grid gap-6 md:grid-cols-2">
@@ -183,7 +183,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                     </CardHeader>
                     <CardContent>
                         {customers.length === 0 ? (
-                            <p className="text-muted-foreground">No outstanding debts.</p>
+                            <p className="text-gray-700 dark:text-gray-300">No outstanding debts.</p>
                         ) : (
                             <div className="space-y-2">
                                 {customers.map(customer => (
@@ -193,7 +193,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                         onClick={() => setSelectedCustomer(customer)}
                                     >
                                         <div className="font-medium">{customer.name}</div>
-                                        <div className="text-sm text-muted-foreground">{customer.phone}</div>
+                                        <div className="text-sm text-gray-700 dark:text-gray-400">{customer.phone}</div>
                                     </div>
                                 ))}
                             </div>
@@ -211,14 +211,14 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                 <div className="flex gap-2 text-sm">
                                     <button 
                                         onClick={() => setView('debts')}
-                                        className={`hover:underline ${view === 'debts' ? 'font-bold text-primary' : 'text-muted-foreground'}`}
+                                        className={`hover:underline ${view === 'debts' ? 'font-bold text-primary' : 'text-gray-700 dark:text-gray-400'}`}
                                     >
                                         Outstanding Debts
                                     </button>
-                                    <span className="text-muted-foreground">|</span>
+                                    <span className="text-gray-700 dark:text-gray-400">|</span>
                                     <button 
                                         onClick={() => setView('payments')}
-                                        className={`hover:underline ${view === 'payments' ? 'font-bold text-primary' : 'text-muted-foreground'}`}
+                                        className={`hover:underline ${view === 'payments' ? 'font-bold text-primary' : 'text-gray-700 dark:text-gray-400'}`}
                                     >
                                         Payment History
                                     </button>
@@ -240,7 +240,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                     </CardHeader>
                     <CardContent>
                         {!selectedCustomer ? (
-                            <p className="text-muted-foreground">Select a customer to view details.</p>
+                            <p className="text-gray-700 dark:text-gray-300">Select a customer to view details.</p>
                         ) : view === 'debts' ? (
                             <div className="overflow-x-auto">
                             <Table>

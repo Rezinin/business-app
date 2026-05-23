@@ -2,8 +2,18 @@ import { ForgotPasswordForm } from "@/components/forgot-password-form";
 
 export default function Page() {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
+    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 bg-gradient-to-br from-white via-lime-50 to-white relative overflow-hidden">
+      {/* Nature Background Image */}
+      <div 
+        className="fixed inset-0 z-0 opacity-3 pointer-events-none"
+        style={{
+          backgroundImage: 'url("https://images.unsplash.com/photo-1505228395891-9a51e7e86e81?q=80&w=2000&auto=format&fit=crop")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      />
+      
+      <div className="w-full max-w-sm relative z-10">
         <ForgotPasswordForm />
       </div>
     </div>
