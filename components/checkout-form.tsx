@@ -53,7 +53,7 @@ export function CheckoutForm({ onClose }: { onClose: () => void }) {
   if (receiptData) {
     return (
       <div className="space-y-4">
-        <POSReceipt receipt={receiptData} compact={true} />
+        <POSReceipt receipt={receiptData} compact={false} />
         <Button
           onClick={() => {
             clearCart();

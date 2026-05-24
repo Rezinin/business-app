@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { CheckoutForm } from "@/components/checkout-form";
 
@@ -109,9 +110,12 @@ export function CartSummary() {
       </Card>
 
       <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw]">
           <DialogHeader>
             <DialogTitle>Complete Order</DialogTitle>
+            <DialogDescription>
+              Review the order, complete payment, and print or download the receipt.
+            </DialogDescription>
           </DialogHeader>
           <CheckoutForm onClose={() => setShowCheckout(false)} />
         </DialogContent>

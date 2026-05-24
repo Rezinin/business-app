@@ -12,7 +12,6 @@ export interface ReceiptDataPayload {
   business_name: string;
   business_address?: string;
   business_phone?: string;
-  business_tax_id?: string;
   date: string;
   time: string;
   items: ReceiptItem[];
@@ -87,7 +86,6 @@ export function buildReceiptData(
     business_name: "Rezinin Enterprise",
     business_address: "Ghana",
     business_phone: "+233 XXX XXX XXXX",
-    business_tax_id: "TIN: XXXXXXXXX",
     date,
     time,
     items: [
@@ -141,7 +139,6 @@ export function buildReceiptDataMultiple(
     business_name: "Rezinin Enterprise",
     business_address: "Ghana",
     business_phone: "+233 XXX XXX XXXX",
-    business_tax_id: "TIN: XXXXXXXXX",
     date,
     time,
     items: receiptItems,
