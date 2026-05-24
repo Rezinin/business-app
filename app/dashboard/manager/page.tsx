@@ -7,6 +7,9 @@ import { InventoryManager } from "@/components/inventory-manager";
 import { UserManager } from "@/components/user-manager";
 import { DailySales } from "@/components/daily-sales";
 import { DebtManager } from "@/components/debt-manager";
+import { CartProvider } from "@/lib/cart-context";
+import { CartSummary } from "@/components/cart-summary";
+import { ProductGrid } from "@/components/product-grid";
 import {
   Dialog,
   DialogContent,
@@ -60,12 +63,22 @@ export default async function ManagerDashboard() {
   const pendingUsersCount = sortedProfiles.filter((p) => !p.verified).length || 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-lime-50 to-white relative">
-      {/* Nature Background Image */}
+    <CartProvider>
+      <div className="min-h-screen bg-gradient-to-br from-white via-lime-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 relative">
+      {/* Nature Background Image - Light Mode */}
       <div 
-        className="fixed inset-0 z-0 opacity-4 pointer-events-none"
+        className="fixed inset-0 z-0 opacity-4 pointer-events-none dark:hidden"
         style={{
           backgroundImage: 'url("https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=2000&auto=format&fit=crop")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      />
+      {/* Nature Background Image - Dark Mode */}
+      <div 
+        className="fixed inset-0 z-0 opacity-6 pointer-events-none hidden dark:block"
+        style={{
+          backgroundImage: 'url("https://images.unsplash.com/photo-1505228395891-9a51e7e86e81?q=80&w=2000&auto=format&fit=crop")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
@@ -76,7 +89,7 @@ export default async function ManagerDashboard() {
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Manager Dashboard</h1>
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 dark:from-lime-400 dark:to-emerald-400 bg-clip-text text-transparent drop-shadow-md">👔 Manager Dashboard</h1>
               <p className="text-sm text-gray-600 mt-1">
                 Welcome, <span className="font-semibold text-lime-700">{currentProfile?.full_name}</span>
               </p>
@@ -113,6 +126,22 @@ export default async function ManagerDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-8 relative z-10">
+        {/* ===== PRIMARY SALES SECTION ===== */}
+        <div>
+          <div className="mb-4">
+            <h2 className="text-2xl font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.75)]">💰 Process Sale</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Add products to cart below, then checkout to complete the sale</p>
+          </div>
+          {/* Shopping Cart */}
+          <CartSummary />
+        </div>
+
+        {/* Product Selection Grid */}
+        <div>
+          <h2 className="text-2xl font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.75)] mb-4">🛍️ Select Products</h2>
+          <ProductGrid inventory={inventory || []} />
+        </div>
+
         {/* Stats Row */}
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="bg-white border-0 shadow-md rounded-xl hover:shadow-lg transition-shadow">
@@ -144,18 +173,34 @@ export default async function ManagerDashboard() {
           </Card>
         </div>
 
-        {/* Sections */}
-        <div className="space-y-8">
-          <InventoryManager inventory={inventory || []} />
+        {/* ===== MANAGER-ONLY SECTIONS ===== */}
+        <div className="border-t-2 border-lime-200 dark:border-slate-700 pt-8">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.75)] flex items-center gap-2">
+              <span>🔐</span> Manager Only - Inventory & Operations
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Features restricted to managers - manage products, users, and customer accounts</p>
+          </div>
+
+          {/* Inventory Management */}
+          <div className="space-y-8">
+            <InventoryManager inventory={inventory || []} />
+          </div>
+        </div>
+
+        {/* Sales History & Debt Management */}
+        <div>
+          <h2 className="text-2xl font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.75)]">📊 Reports</h2>
         </div>
 
         <DailySales />
 
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Debt Management</h2>
+          <h2 className="text-2xl font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.75)]">💳 Debt Management</h2>
           <DebtManager canDelete={true} />
         </div>
       </div>
     </div>
+    </CartProvider>
   );
 }

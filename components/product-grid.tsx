@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { RecordSaleButton } from "./record-sale-button";
+import { AddToCartButton } from "./add-to-cart-button";
 import { Search, Info } from "lucide-react";
 
 function ProductCard({ item }: { item: any }) {
@@ -39,7 +39,7 @@ function ProductCard({ item }: { item: any }) {
                 <div className="text-sm mb-4">
                     Available: <span className={item.quantity < 10 ? "text-red-500 font-bold" : ""}>{item.quantity}</span>
                 </div>
-                <RecordSaleButton product={item} />
+                <AddToCartButton product={item} />
             </CardContent>
         </Card>
     );

@@ -23,6 +23,8 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
+import { POSReceipt } from "@/components/pos-receipt"
+import type { ReceiptDataPayload } from "@/lib/receipt-utils"
 
 interface Product {
     id: string
@@ -49,6 +51,10 @@ export function RecordSaleButton({ product }: { product: Product }) {
     const [isNewCustomer, setIsNewCustomer] = useState(false)
     const [newCustomerName, setNewCustomerName] = useState("")
     const [newCustomerPhone, setNewCustomerPhone] = useState("")
+    
+    // Receipt display
+    const [showReceipt, setShowReceipt] = useState(false)
+    const [receiptData, setReceiptData] = useState<ReceiptDataPayload | null>(null)
 
     const supabase = createClient()
 
@@ -92,7 +98,15 @@ export function RecordSaleButton({ product }: { product: Product }) {
 
             const paid = isCredit ? (parseFloat(amountPaid) || 0) : (product.price * quantity)
 
-            await recordSale(product.id, quantity, product.price, customerId || undefined, paid)
+            const result = await recordSale(product.id, quantity, product.price, customerId || undefined, paid)
+            
+            // Show receipt
+            if (result.receipt?.receipt_data) {
+                setReceiptData(result.receipt.receipt_data)
+                setShowReceipt(true)
+            }
+            
+            // Close sale dialog and reset form
             setOpen(false)
             setQuantity(1)
             setIsCredit(false)
@@ -109,117 +123,139 @@ export function RecordSaleButton({ product }: { product: Product }) {
     }
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button className="w-full" disabled={product.quantity <= 0}>
-                    {product.quantity > 0 ? "Record Sale" : "Out of Stock"}
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Record Sale: {product.name}</DialogTitle>
-                    <DialogDescription>
-                        Enter the quantity sold. Current stock: {product.quantity}
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="quantity" className="text-right">
-                            Quantity
-                        </Label>
-                        <Input
-                            id="quantity"
-                            type="number"
-                            min="1"
-                            max={product.quantity}
-                            value={quantity}
-                            onChange={(e) => setQuantity(parseInt(e.target.value))}
-                            className="col-span-3"
-                        />
-                    </div>
+        <>
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                    <Button className="w-full" disabled={product.quantity <= 0}>
+                        {product.quantity > 0 ? "Record Sale" : "Out of Stock"}
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Record Sale: {product.name}</DialogTitle>
+                        <DialogDescription>
+                            Enter the quantity sold. Current stock: {product.quantity}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="quantity" className="text-right">
+                                Quantity
+                            </Label>
+                            <Input
+                                id="quantity"
+                                type="number"
+                                min="1"
+                                max={product.quantity}
+                                value={quantity}
+                                onChange={(e) => setQuantity(parseInt(e.target.value))}
+                                className="col-span-3"
+                            />
+                        </div>
 
-                    <div className="flex items-center space-x-2">
-                        <Checkbox 
-                            id="credit" 
-                            checked={isCredit} 
-                            onCheckedChange={(c) => setIsCredit(!!c)} 
-                        />
-                        <div className="grid gap-1.5 leading-none">
-                            <Label htmlFor="credit">Sell on Credit / Partial Payment</Label>
-                            <p className="text-xs text-muted-foreground">
-                                Check this if the customer is not paying the full amount now.
-                            </p>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox 
+                                id="credit" 
+                                checked={isCredit} 
+                                onCheckedChange={(c) => setIsCredit(!!c)} 
+                            />
+                            <div className="grid gap-1.5 leading-none">
+                                <Label htmlFor="credit">Sell on Credit / Partial Payment</Label>
+                                <p className="text-xs text-muted-foreground">
+                                    Check this if the customer is not paying the full amount now.
+                                </p>
+                            </div>
+                        </div>
+
+                        {isCredit && (
+                            <>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label className="text-right">Customer</Label>
+                                    <div className="col-span-3">
+                                        {!isNewCustomer ? (
+                                            <div className="flex gap-2">
+                                                <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select Customer" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {customers.map(c => (
+                                                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <Button variant="outline" size="icon" onClick={() => setIsNewCustomer(true)} title="New Customer">
+                                                    +
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <Input 
+                                                    placeholder="Name" 
+                                                    value={newCustomerName} 
+                                                    onChange={e => setNewCustomerName(e.target.value)} 
+                                                />
+                                                <Input 
+                                                    placeholder="Phone" 
+                                                    value={newCustomerPhone} 
+                                                    onChange={e => setNewCustomerPhone(e.target.value)} 
+                                                />
+                                                <Button variant="ghost" size="sm" onClick={() => setIsNewCustomer(false)}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="paid" className="text-right">
+                                        Paid Now
+                                    </Label>
+                                    <Input
+                                        id="paid"
+                                        type="number"
+                                        min="0"
+                                        value={amountPaid}
+                                        onChange={(e) => setAmountPaid(e.target.value)}
+                                        placeholder="0.00"
+                                        className="col-span-3"
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        <div className="text-sm text-muted-foreground text-right">
+                            Total: ₵{(quantity * product.price).toFixed(2)}
                         </div>
                     </div>
+                    <DialogFooter>
+                        <Button onClick={handleSale} disabled={loading}>
+                            {loading ? "Recording..." : "Confirm Sale"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-                    {isCredit && (
-                        <>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label className="text-right">Customer</Label>
-                                <div className="col-span-3">
-                                    {!isNewCustomer ? (
-                                        <div className="flex gap-2">
-                                            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select Customer" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {customers.map(c => (
-                                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <Button variant="outline" size="icon" onClick={() => setIsNewCustomer(true)} title="New Customer">
-                                                +
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            <Input 
-                                                placeholder="Name" 
-                                                value={newCustomerName} 
-                                                onChange={e => setNewCustomerName(e.target.value)} 
-                                            />
-                                            <Input 
-                                                placeholder="Phone" 
-                                                value={newCustomerPhone} 
-                                                onChange={e => setNewCustomerPhone(e.target.value)} 
-                                            />
-                                            <Button variant="ghost" size="sm" onClick={() => setIsNewCustomer(false)}>
-                                                Cancel
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="paid" className="text-right">
-                                    Paid Now
-                                </Label>
-                                <Input
-                                    id="paid"
-                                    type="number"
-                                    min="0"
-                                    value={amountPaid}
-                                    onChange={(e) => setAmountPaid(e.target.value)}
-                                    placeholder="0.00"
-                                    className="col-span-3"
-                                />
-                            </div>
-                        </>
+            {/* Receipt Display Dialog */}
+            <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>📋 Sales Receipt</DialogTitle>
+                        <DialogDescription>
+                            Sale recorded successfully! Print or download your receipt.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {receiptData && (
+                        <div className="py-4">
+                            <POSReceipt receipt={receiptData} />
+                        </div>
                     )}
-
-                    <div className="text-sm text-muted-foreground text-right">
-                        Total: ₵{(quantity * product.price).toFixed(2)}
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button onClick={handleSale} disabled={loading}>
-                        {loading ? "Recording..." : "Confirm Sale"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    <DialogFooter>
+                        <Button onClick={() => setShowReceipt(false)}>Close</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     )
 }

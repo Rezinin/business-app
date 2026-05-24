@@ -138,7 +138,28 @@ CREATE POLICY "Enable read access for all users" ON payments FOR SELECT USING (t
 CREATE POLICY "Enable insert access for all users" ON payments FOR INSERT WITH CHECK (true);
 
 
--- 6. FUNCTIONS & TRIGGERS
+-- 6. RECEIPTS TABLE
+-- Stores POS receipts for tracking and printing.
+CREATE TABLE IF NOT EXISTS receipts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  sale_id UUID REFERENCES sales(id) ON DELETE CASCADE,
+  receipt_number TEXT NOT NULL UNIQUE,
+  receipt_data JSONB NOT NULL,
+  printed_count INTEGER DEFAULT 0,
+  last_printed TIMESTAMP WITH TIME ZONE
+);
+
+-- Enable RLS
+ALTER TABLE receipts ENABLE ROW LEVEL SECURITY;
+
+-- Receipts Policies
+CREATE POLICY "Enable read access for all users" ON receipts FOR SELECT USING (true);
+CREATE POLICY "Enable insert access for all users" ON receipts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update access for all users" ON receipts FOR UPDATE USING (true);
+
+
+-- 7. FUNCTIONS & TRIGGERS
 -- Automatically creates a profile when a new user signs up via Supabase Auth.
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()

@@ -13,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Trash, Edit, Search, Info } from "lucide-react";
-import { RecordSaleButton } from "./record-sale-button";
 
 export function InventoryManager({ inventory }: { inventory: any[] }) {
   const [isEditing, setIsEditing] = useState<string | null>(null);
@@ -39,7 +38,7 @@ export function InventoryManager({ inventory }: { inventory: any[] }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Inventory</h2>
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 dark:from-lime-400 dark:to-emerald-400 bg-clip-text text-transparent drop-shadow-sm">📦 Inventory</h2>
         <Button onClick={() => setIsAdding(!isAdding)}>
           {isAdding ? "Cancel" : "Add Product"}
         </Button>
@@ -166,10 +165,6 @@ export function InventoryManager({ inventory }: { inventory: any[] }) {
                     </div>
                   </div>
                   <div className="flex gap-2 items-center w-full md:w-auto">
-                    <div className="flex-1 md:flex-none">
-                        <RecordSaleButton product={item} />
-                    </div>
-                    
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="h-8 w-8 p-0">
