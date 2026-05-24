@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckoutForm } from "./checkout-form";
+import { CheckoutForm } from "@/components/checkout-form";
 
 export function CartSummary() {
   const { items, removeItem, updateQuantity, getTotal, clearCart } = useCart();
@@ -54,6 +54,7 @@ export function CartSummary() {
                       min="1"
                       max={item.available}
                       value={item.quantity}
+                      placeholder="Qty"
                       onChange={(e) =>
                         updateQuantity(item.id, parseInt(e.target.value) || 1)
                       }
