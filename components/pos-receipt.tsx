@@ -49,6 +49,13 @@ function escapeHtml(value: string) {
 
 function buildPrintableReceiptHtml(receipt: ReceiptData) {
   const cleanedReceiptNumber = receipt.receipt_number.replace(/^PREVIEW-?/i, "");
+  const initials = (receipt.business_name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((s) => s[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   const itemsHtml = receipt.items
     .map(
       (item) => `
@@ -90,22 +97,23 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
           @page { margin: 0; }
           .sheet {
             width: min(80mm, 100%);
-            margin: 0;
-            padding: 6px 6px;
+            margin: 0 auto; /* center with equal left/right margins */
+            padding: 8px 8px; /* more generous padding for paper */
             overflow: hidden;
           }
-          .title { text-align: center; font-size: 13px; font-weight: 800; margin-bottom: 2px; }
-          .logo { display: block; margin: 0 auto 4px; max-width: 44mm; height: auto; }
+          .title { text-align: center; font-size: 16px; font-weight: 800; margin: 0 0 4px 0; }
+          .logo { display: none; }
+          /* header and logo removed for printable output; keep title centered */
           .subtle { text-align: center; font-size: 10px; line-height: 1.2; color: #222222; }
           .divider { border-top: 1px dashed #222; margin: 6px 0; padding-top: 4px; padding-bottom: 4px; text-align: left; }
-          .section { margin: 4px 0; }
+          .section { margin: 10px 0; }
           table { width: 100%; border-collapse: collapse; font-size: 11px; }
-          th, td { padding: 1px 0; vertical-align: top; }
+          th, td { padding: 4px 0; vertical-align: top; }
           thead th { font-weight: 700; text-align: left; padding-top: 2px; padding-bottom: 2px; }
-          .item-name { width: 55%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          .item-qty { width: 10%; text-align: center; }
-          .item-price { width: 17%; text-align: right; }
-          .item-total { width: 18%; text-align: right; }
+          .item-name { width: 50%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right:6px }
+          .item-qty { width: 12%; text-align: center; padding: 0 4px }
+          .item-price { width: 19%; text-align: right; padding: 0 6px }
+          .item-total { width: 19%; text-align: right; padding: 0 6px }
           .row { display:flex; justify-content:space-between; gap:6px; font-size:11px; }
           .totals { border-top: 1px solid #222; padding-top: 4px; margin-top: 4px; }
           .totals .label { font-size: 11px; }
@@ -115,21 +123,14 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
           .status { color: #b91c1c; font-weight: 700; font-size: 10px; }
           @media print {
             html, body { margin: 0; padding: 0; }
-            .sheet { width: 58mm; padding: 4px 4px; }
-            .title { font-size: 13px; }
+            .sheet { width: 80mm; padding: 8px 8px; }
+            .title { font-size: 15px; }
           }
         </style>
       </head>
       <body>
-        <div class="sheet">
-          ${receipt.business_logo ? `<img src="${escapeHtml(receipt.business_logo)}" class="logo" alt="logo" />` : `
-            <svg class="logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <rect x="2" y="7" width="20" height="10" rx="2" fill="#84cc16"></rect>
-              <path d="M2 7l10-4 10 4" fill="#65a30d"></path>
-              <path d="M12 3v14" stroke="#ffffff" stroke-width="0.8" stroke-linecap="round"></path>
-            </svg>
-          `}
-          <div class="title">${escapeHtml(receipt.business_name)}</div>
+          <div class="sheet">
+            <div class="title">${escapeHtml(receipt.business_name)}</div>
           ${receipt.business_address ? `<div class="subtle">${escapeHtml(receipt.business_address)}</div>` : ""}
           ${receipt.business_phone ? `<div class="subtle">Tel: ${escapeHtml(receipt.business_phone)}</div>` : ""}
 
@@ -221,18 +222,14 @@ export function POSReceipt({ receipt, compact = false, onPrinted }: POSReceiptPr
       >
         {/* Header */}
         <div className="text-center mb-3 text-slate-900">
-          {receipt.business_logo && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={receipt.business_logo} alt="logo" className="mx-auto mb-1 max-w-[120px] h-auto" />
-          )}
-          <div className="text-base font-bold">{receipt.business_name}</div>
-          {receipt.business_address && (
-            <div className="text-sm text-slate-700">{receipt.business_address}</div>
-          )}
-          {receipt.business_phone && (
-            <div className="text-sm text-slate-700">Tel: {receipt.business_phone}</div>
-          )}
+          <div className="text-lg font-bold">{receipt.business_name}</div>
         </div>
+        {receipt.business_address && (
+          <div className="text-center text-sm text-slate-700">{receipt.business_address}</div>
+        )}
+        {receipt.business_phone && (
+          <div className="text-center text-sm text-slate-700">Tel: {receipt.business_phone}</div>
+        )}
 
         <div className="border-t-2 border-b-2 border-slate-800 py-2 text-center text-sm text-slate-900">
           <div className="font-bold">SALES RECEIPT</div>
@@ -244,16 +241,16 @@ export function POSReceipt({ receipt, compact = false, onPrinted }: POSReceiptPr
         <div className="my-3 text-slate-900">
           <div className="border-t border-slate-300 pt-1 pb-1 text-sm font-bold grid grid-cols-12 gap-0 mb-1">
             <div className="col-span-6">Item</div>
-            <div className="col-span-2 text-center">Qty</div>
-            <div className="col-span-2 text-right">Price</div>
-            <div className="col-span-2 text-right">Total</div>
+            <div className="col-span-2 text-center px-2">Qty</div>
+            <div className="col-span-2 text-right px-2">Price</div>
+            <div className="col-span-2 text-right px-2">Total</div>
           </div>
           {receipt.items.map((item, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-0 text-sm mb-1">
+            <div key={idx} className="grid grid-cols-12 gap-2 text-sm mb-1 items-center">
               <div className="col-span-6 truncate">{item.name}</div>
-              <div className="col-span-2 text-center">{item.quantity}</div>
-              <div className="col-span-2 text-right">₵{item.unit_price.toFixed(2)}</div>
-              <div className="col-span-2 text-right">₵{item.total_price.toFixed(2)}</div>
+              <div className="col-span-2 text-center px-2">{item.quantity}</div>
+              <div className="col-span-2 text-right px-2">₵{item.unit_price.toFixed(2)}</div>
+              <div className="col-span-2 text-right px-2">₵{item.total_price.toFixed(2)}</div>
             </div>
           ))}
           <div className="border-t border-slate-300 pt-1 mt-1" />
