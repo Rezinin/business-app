@@ -89,8 +89,31 @@ DROP POLICY IF EXISTS "Enable delete for authenticated users" ON inventory;
 CREATE POLICY "Enable delete for authenticated users" ON inventory
   FOR DELETE TO authenticated USING (true);
 
+-- ============================================================================== 
+-- 3. INVENTORY SETTINGS TABLE - Global inventory policy
 -- ==============================================================================
--- 3. CUSTOMERS TABLE - Customer information for credit sales
+CREATE TABLE IF NOT EXISTS inventory_settings (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  allow_negative_inventory BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+INSERT INTO inventory_settings (id, allow_negative_inventory)
+VALUES (1, FALSE)
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE inventory_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON inventory_settings;
+CREATE POLICY "Enable read access for authenticated users" ON inventory_settings
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Enable update for authenticated users" ON inventory_settings;
+CREATE POLICY "Enable update for authenticated users" ON inventory_settings
+  FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+
+-- ==============================================================================
+-- 4. CUSTOMERS TABLE - Customer information for credit sales
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS customers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

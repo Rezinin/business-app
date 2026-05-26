@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { createProduct, updateProduct, deleteProduct } from "@/app/actions";
+import { createProduct, updateProduct, deleteProduct, updateInventoryPolicy } from "@/app/actions"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,12 +14,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Trash, Edit, Search, Info } from "lucide-react";
+import { useCart } from "@/lib/cart-context"
 
-export function InventoryManager({ inventory }: { inventory: any[] }) {
+type InventoryStats = {
+  productCount: number;
+  lowStockCount: number;
+  totalValue: number;
+};
+
+export function InventoryManager({ inventory, stats }: { inventory: any[]; stats?: InventoryStats }) {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [savingPolicy, setSavingPolicy] = useState(false)
+  const { allowNegativeInventory, setAllowNegativeInventory } = useCart()
 
   const toggleDescription = (id: string) => {
       const newSet = new Set(expandedItems);
@@ -37,12 +47,78 @@ export function InventoryManager({ inventory }: { inventory: any[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 dark:from-lime-400 dark:to-emerald-400 bg-clip-text text-transparent drop-shadow-sm">📦 Inventory</h2>
-        <Button onClick={() => setIsAdding(!isAdding)}>
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 dark:from-lime-400 dark:to-emerald-400 bg-clip-text text-transparent drop-shadow-sm">
+          📦 Inventory
+        </h2>
+
+        <div className="w-fit max-w-[220px] inline-flex items-start gap-2 rounded-lg border border-lime-200 dark:border-lime-900/60 bg-white/80 dark:bg-slate-900/60 px-3 py-2 shadow-sm">
+            <Checkbox
+              id="allow-negative-inventory"
+              checked={allowNegativeInventory}
+              disabled={savingPolicy}
+              onCheckedChange={async (checked) => {
+                const nextValue = Boolean(checked)
+                const previousValue = allowNegativeInventory
+                setAllowNegativeInventory(nextValue)
+                setSavingPolicy(true)
+                try {
+                  await updateInventoryPolicy(nextValue)
+                } catch (error) {
+                  console.error(error)
+                  setAllowNegativeInventory(previousValue)
+                  alert("Failed to update inventory policy.")
+                } finally {
+                  setSavingPolicy(false)
+                }
+              }}
+            />
+            <div className="space-y-0.5 min-w-0">
+              <Label htmlFor="allow-negative-inventory" className="font-medium text-[13px] leading-tight">
+                Allow negative inventory
+              </Label>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                Off by default. Turn it on only if you want overselling past stock.
+              </p>
+            </div>
+        </div>
+
+        <Button onClick={() => setIsAdding(!isAdding)} className="ml-auto shrink-0">
           {isAdding ? "Cancel" : "Add Product"}
         </Button>
       </div>
+
+      {stats && (
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="border border-lime-200/70 bg-white/80 shadow-sm rounded-xl dark:border-slate-700 dark:bg-slate-900/70 hover:shadow-md transition-shadow">
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">Total Products</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 pt-0">
+              <div className="text-3xl font-bold text-lime-700 dark:text-lime-400">{stats.productCount}</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">in inventory</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-orange-200/70 bg-white/80 shadow-sm rounded-xl dark:border-slate-700 dark:bg-slate-900/70 hover:shadow-md transition-shadow">
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">Low Stock Items</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 pt-0">
+              <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.lowStockCount}</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">items with &lt; 10 qty</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-lime-200/70 bg-white/80 shadow-sm rounded-xl dark:border-slate-700 dark:bg-slate-900/70 hover:shadow-md transition-shadow">
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">Total Value</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 pt-0">
+              <div className="text-3xl font-bold text-lime-700 dark:text-lime-400">₵{stats.totalValue.toFixed(2)}</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">inventory value</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="relative">
         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />

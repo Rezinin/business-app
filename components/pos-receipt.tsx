@@ -16,6 +16,7 @@ interface ReceiptData {
   business_name: string;
   business_address?: string;
   business_phone?: string;
+  business_logo?: string;
   date: string;
   time: string;
   items: ReceiptItem[];
@@ -71,47 +72,63 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
         <style>
           :root { color-scheme: light; }
           * { box-sizing: border-box; }
-          body {
+          html, body {
+            height: 100%;
             margin: 0;
-            padding: 6px 8px;
+            padding: 0;
             background: #ffffff;
             color: #000000;
+            -webkit-print-color-adjust: exact;
+          }
+          body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            font-size: 12px;
+            font-size: 11px;
+            line-height: 1.15;
           }
-          /* Narrow receipt width for thermal printers */
+          /* Use a flexible sheet width so the receipt adapts to printer paper width.
+             Prefer common thermal widths but allow printers with larger paper to fit. */
+          @page { margin: 0; }
           .sheet {
-            width: 100%;
-            max-width: 320px;
-            margin: 0 auto;
-            padding: 6px 8px;
+            width: min(80mm, 100%);
+            margin: 0;
+            padding: 6px 6px;
+            overflow: hidden;
           }
-          .title { text-align: center; font-size: 16px; font-weight: 800; margin-bottom: 2px; }
-          .subtle { text-align: center; font-size: 11px; line-height: 1.3; color: #222222; }
-          .divider { border-top: 1px dashed #222; margin: 8px 0; padding-top: 6px; padding-bottom: 6px; text-align: left; }
-          .section { margin: 6px 0; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { padding: 2px 0; vertical-align: top; }
-          thead th { font-weight: 700; text-align: left; padding-top: 4px; padding-bottom: 4px; }
-          .item-name { width: 60%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          .item-qty { width: 8%; text-align: center; }
-          .item-price { width: 16%; text-align: right; }
-          .item-total { width: 16%; text-align: right; }
-          .row { display:flex; justify-content:space-between; gap:8px; font-size:13px; }
-          .totals { border-top: 1px solid #222; padding-top: 6px; margin-top: 6px; }
-          .totals .label { font-size: 12px; }
-          .totals .value { font-size: 12px; text-align: right; }
-          .grand { font-weight: 900; font-size: 16px; }
-          .footer { margin-top: 8px; text-align: center; font-size: 11px; color: #222; }
-          .status { color: #b91c1c; font-weight: 700; }
+          .title { text-align: center; font-size: 13px; font-weight: 800; margin-bottom: 2px; }
+          .logo { display: block; margin: 0 auto 4px; max-width: 44mm; height: auto; }
+          .subtle { text-align: center; font-size: 10px; line-height: 1.2; color: #222222; }
+          .divider { border-top: 1px dashed #222; margin: 6px 0; padding-top: 4px; padding-bottom: 4px; text-align: left; }
+          .section { margin: 4px 0; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          th, td { padding: 1px 0; vertical-align: top; }
+          thead th { font-weight: 700; text-align: left; padding-top: 2px; padding-bottom: 2px; }
+          .item-name { width: 55%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .item-qty { width: 10%; text-align: center; }
+          .item-price { width: 17%; text-align: right; }
+          .item-total { width: 18%; text-align: right; }
+          .row { display:flex; justify-content:space-between; gap:6px; font-size:11px; }
+          .totals { border-top: 1px solid #222; padding-top: 4px; margin-top: 4px; }
+          .totals .label { font-size: 11px; }
+          .totals .value { font-size: 11px; text-align: right; }
+          .grand { font-weight: 800; font-size: 14px; }
+          .footer { margin-top: 6px; text-align: center; font-size: 10px; color: #222; }
+          .status { color: #b91c1c; font-weight: 700; font-size: 10px; }
           @media print {
-            body { padding: 0; }
-            .sheet { max-width: 320px; }
+            html, body { margin: 0; padding: 0; }
+            .sheet { width: 58mm; padding: 4px 4px; }
+            .title { font-size: 13px; }
           }
         </style>
       </head>
       <body>
         <div class="sheet">
+          ${receipt.business_logo ? `<img src="${escapeHtml(receipt.business_logo)}" class="logo" alt="logo" />` : `
+            <svg class="logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <rect x="2" y="7" width="20" height="10" rx="2" fill="#84cc16"></rect>
+              <path d="M2 7l10-4 10 4" fill="#65a30d"></path>
+              <path d="M12 3v14" stroke="#ffffff" stroke-width="0.8" stroke-linecap="round"></path>
+            </svg>
+          `}
           <div class="title">${escapeHtml(receipt.business_name)}</div>
           ${receipt.business_address ? `<div class="subtle">${escapeHtml(receipt.business_address)}</div>` : ""}
           ${receipt.business_phone ? `<div class="subtle">Tel: ${escapeHtml(receipt.business_phone)}</div>` : ""}
@@ -204,6 +221,10 @@ export function POSReceipt({ receipt, compact = false, onPrinted }: POSReceiptPr
       >
         {/* Header */}
         <div className="text-center mb-3 text-slate-900">
+          {receipt.business_logo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={receipt.business_logo} alt="logo" className="mx-auto mb-1 max-w-[120px] h-auto" />
+          )}
           <div className="text-base font-bold">{receipt.business_name}</div>
           {receipt.business_address && (
             <div className="text-sm text-slate-700">{receipt.business_address}</div>

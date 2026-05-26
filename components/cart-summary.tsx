@@ -16,7 +16,7 @@ import {
 import { CheckoutForm } from "@/components/checkout-form";
 
 export function CartSummary() {
-  const { items, removeItem, updateQuantity, getTotal, clearCart } = useCart();
+  const { items, removeItem, updateQuantity, getTotal, clearCart, allowNegativeInventory } = useCart();
   const [showCheckout, setShowCheckout] = useState(false);
   const [closeBlocked, setCloseBlocked] = useState(false);
 
@@ -54,7 +54,7 @@ export function CartSummary() {
                     <input
                       type="number"
                       min="1"
-                      max={item.available}
+                      max={allowNegativeInventory ? undefined : item.available}
                       value={item.quantity}
                       placeholder="Qty"
                       onChange={(e) =>

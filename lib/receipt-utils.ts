@@ -12,6 +12,7 @@ export interface ReceiptDataPayload {
   business_name: string;
   business_address?: string;
   business_phone?: string;
+  business_logo?: string;
   date: string;
   time: string;
   items: ReceiptItem[];
@@ -71,13 +72,15 @@ export function buildReceiptData(
   customerPhone: string | undefined,
   salespersonName: string,
   amountPaid: number,
-  status: string
+  status: string,
+  paymentMethod?: string,
+  businessLogo?: string
 ): ReceiptDataPayload {
   const unitPrice = productPrice;
   const subtotal = productPrice * quantity;
   const total = subtotal;
   const change = amountPaid > total ? amountPaid - total : 0;
-  const paymentMethod = status === "pending" ? "Credit" : "Cash";
+  const resolvedPaymentMethod = paymentMethod || (status === "pending" ? "Credit" : "Cash");
 
   const { date, time } = formatReceiptDateTime();
 
@@ -99,12 +102,13 @@ export function buildReceiptData(
     subtotal,
     tax: undefined, // Add tax calculation if needed
     total,
-    payment_method: paymentMethod,
+    payment_method: resolvedPaymentMethod,
     amount_paid: amountPaid,
     change: change > 0 ? change : undefined,
     customer_name: customerName,
     customer_phone: customerPhone,
     salesperson_name: salespersonName,
+    business_logo: businessLogo,
     status,
   };
 }
@@ -118,7 +122,9 @@ export function buildReceiptDataMultiple(
   customerPhone: string | undefined,
   salespersonName: string,
   amountPaid: number,
-  status: string
+  status: string,
+  paymentMethod?: string,
+  businessLogo?: string
 ): ReceiptDataPayload {
   const receiptItems: ReceiptItem[] = items.map((item) => ({
     name: item.name,
@@ -130,7 +136,7 @@ export function buildReceiptDataMultiple(
   const subtotal = receiptItems.reduce((sum, item) => sum + item.total_price, 0);
   const total = subtotal;
   const change = amountPaid > total ? amountPaid - total : 0;
-  const paymentMethod = status === "pending" ? "Credit" : "Cash";
+  const resolvedPaymentMethod = paymentMethod || (status === "pending" ? "Credit" : "Cash");
 
   const { date, time } = formatReceiptDateTime();
 
@@ -145,12 +151,13 @@ export function buildReceiptDataMultiple(
     subtotal,
     tax: undefined, // Add tax calculation if needed
     total,
-    payment_method: paymentMethod,
+    payment_method: resolvedPaymentMethod,
     amount_paid: amountPaid,
     change: change > 0 ? change : undefined,
     customer_name: customerName,
     customer_phone: customerPhone,
     salesperson_name: salespersonName,
+    business_logo: businessLogo,
     status,
   };
 }

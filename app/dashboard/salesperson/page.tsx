@@ -7,6 +7,7 @@ import { ProductGrid } from "@/components/product-grid";
 import { DebtManager } from "@/components/debt-manager";
 import { CartProvider } from "@/lib/cart-context";
 import { CartSummary } from "@/components/cart-summary";
+import { getAllowNegativeInventory } from "@/lib/inventory-settings";
 import {
   Dialog,
   DialogContent,
@@ -28,9 +29,10 @@ export default async function SalespersonDashboard() {
 
   // Fetch inventory
   const { data: inventory } = await supabase.from("inventory").select("*");
+  const allowNegativeInventory = await getAllowNegativeInventory();
 
   return (
-    <CartProvider>
+    <CartProvider allowNegativeInventory={allowNegativeInventory}>
       <div className="min-h-screen bg-gradient-to-br from-white via-lime-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 relative">
       {/* Nature Background Image - Light Mode */}
       <div 

@@ -72,3 +72,43 @@ DROP POLICY IF EXISTS "Enable insert access for all users" ON payments;
 
 CREATE POLICY "Enable read access for all users" ON payments FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON payments FOR INSERT WITH CHECK (true);
+
+-- 7. Inventory settings (negative inventory toggle)
+CREATE TABLE IF NOT EXISTS inventory_settings (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    allow_negative_inventory BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+INSERT INTO inventory_settings (id, allow_negative_inventory)
+VALUES (1, FALSE)
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE inventory_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable read access for all users" ON inventory_settings;
+DROP POLICY IF EXISTS "Enable update access for all users" ON inventory_settings;
+
+CREATE POLICY "Enable read access for all users" ON inventory_settings FOR SELECT USING (true);
+CREATE POLICY "Enable update access for all users" ON inventory_settings FOR UPDATE USING (true) WITH CHECK (true);
+
+-- 7. Receipts table (missing in some databases)
+CREATE TABLE IF NOT EXISTS receipts (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    sale_id UUID REFERENCES sales(id) ON DELETE CASCADE,
+    receipt_number TEXT NOT NULL UNIQUE,
+    receipt_data JSONB NOT NULL,
+    printed_count INTEGER DEFAULT 0,
+    last_printed TIMESTAMP WITH TIME ZONE
+);
+
+ALTER TABLE receipts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable read access for all users" ON receipts;
+DROP POLICY IF EXISTS "Enable insert access for all users" ON receipts;
+DROP POLICY IF EXISTS "Enable update access for all users" ON receipts;
+
+CREATE POLICY "Enable read access for all users" ON receipts FOR SELECT USING (true);
+CREATE POLICY "Enable insert access for all users" ON receipts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update access for all users" ON receipts FOR UPDATE USING (true);

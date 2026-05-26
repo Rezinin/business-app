@@ -17,7 +17,7 @@ interface AddToCartButtonProps {
 }
 
 export function AddToCartButton({ product }: AddToCartButtonProps) {
-  const { addItem } = useCart();
+  const { addItem, allowNegativeInventory } = useCart();
   const [quantity, setQuantity] = useState(1);
 
   const handleAddToCart = () => {
@@ -42,16 +42,19 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
           id={`qty-${product.id}`}
           type="number"
           min="1"
-          max={product.quantity}
-          value={quantity}
-          onChange={(e) => setQuantity(Math.min(Math.max(1, parseInt(e.target.value) || 1), product.quantity))}
+            max={allowNegativeInventory ? undefined : product.quantity}
+            value={quantity}
+            onChange={(e) => {
+              const nextQuantity = Math.max(1, parseInt(e.target.value) || 1);
+              setQuantity(allowNegativeInventory ? nextQuantity : Math.min(nextQuantity, product.quantity));
+            }}
           className="h-9 mt-1"
         />
       </div>
       <Button
         onClick={handleAddToCart}
         className="flex-1 bg-lime-600 hover:bg-lime-700 text-white h-9"
-        disabled={product.quantity === 0}
+        disabled={!allowNegativeInventory && product.quantity === 0}
       >
         <ShoppingCart className="mr-1 h-4 w-4" />
         Add

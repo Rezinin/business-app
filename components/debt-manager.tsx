@@ -39,6 +39,7 @@ interface Customer {
     id: string
     name: string
     phone: string
+    debtAmount: number
 }
 
 interface DebtSale {
@@ -77,11 +78,12 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
     const supabase = createClient()
 
     const fetchCustomersWithDebt = async () => {
-        // Fetch sales that are pending AND have outstanding debt
+        // Fetch sales that have a customer and then roll them up by customer so
+        // only customers with a positive remaining balance stay in the list.
         const { data: sales, error } = await supabase
             .from("sales")
             .select("id, customer_id, total_price, amount_paid, customers(id, name, phone)")
-            .eq("status", "pending")
+            .not('customer_id', 'is', null)
         
         if (error) {
             console.error("Error fetching customers with debt:", error)
@@ -90,21 +92,36 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
         }
         
         if (sales && sales.length > 0) {
-            const uniqueCustomers = new Map()
-            // Filter to only include sales with outstanding debt (amount_paid < total_price)
-            sales.forEach(sale => {
-                if (sale.customers && (sale.amount_paid || 0) < sale.total_price) {
-                    // @ts-ignore
-                    uniqueCustomers.set(sale.customers.id, sale.customers)
+            const customerDebtMap = new Map<string, Customer>()
+
+            sales.forEach((sale: any) => {
+                const outstanding = Number(sale.total_price || 0) - Number(sale.amount_paid || 0)
+
+                if (!sale.customers || outstanding <= 0) {
+                    return
                 }
+
+                const existingCustomer = customerDebtMap.get(sale.customers.id)
+                const nextDebtAmount = (existingCustomer?.debtAmount || 0) + outstanding
+
+                customerDebtMap.set(sale.customers.id, {
+                    id: sale.customers.id,
+                    name: sale.customers.name,
+                    phone: sale.customers.phone,
+                    debtAmount: nextDebtAmount,
+                })
             })
-            setCustomers(Array.from(uniqueCustomers.values()))
+
+            setCustomers(
+                Array.from(customerDebtMap.values()).sort((left, right) => right.debtAmount - left.debtAmount)
+            )
         } else {
             setCustomers([])
         }
     }
 
     const fetchCustomerDebts = async (customerId: string) => {
+        // Don't rely solely on the `status` column — filter by outstanding amount
         const { data, error } = await supabase
             .from("sales")
             .select(`
@@ -112,7 +129,6 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                 inventory(name)
             `)
             .eq("customer_id", customerId)
-            .eq("status", "pending")
             .order("created_at", { ascending: true })
         
         if (error) {
@@ -122,8 +138,9 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
         }
         
         if (data) {
-            // Filter to only show sales with outstanding debt
+            // Filter to only show sales with outstanding debt (protects against status mismatches)
             const outstandingDebts = data.filter((sale: any) => (sale.amount_paid || 0) < sale.total_price)
+            // Ensure we return a consistent shape for the UI
             // @ts-ignore
             setDebts(outstandingDebts)
         } else {
@@ -222,6 +239,9 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                     >
                                         <div className="font-medium">{customer.name}</div>
                                         <div className="text-sm text-gray-700 dark:text-gray-400">{customer.phone}</div>
+                                        <div className="text-sm font-semibold text-red-600 dark:text-red-400">
+                                            Owes ₵{customer.debtAmount.toFixed(2)}
+                                        </div>
                                     </div>
                                 ))}
                             </div>

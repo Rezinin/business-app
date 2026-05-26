@@ -25,6 +25,8 @@ interface CheckoutFormProps {
 export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps) {
   const { items, getTotal, clearCart } = useCart();
   const [status, setStatus] = useState<"paid" | "pending">("paid");
+  const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
+  const [otherPaymentLabel, setOtherPaymentLabel] = useState<string>("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -39,21 +41,43 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
   const supabase = createClient();
 
   const total = getTotal();
-  const change = Math.max(0, parseFloat(amountPaid) - total);
+  const parsedAmountPaid = Number.isFinite(Number(amountPaid)) ? Number(amountPaid) : 0;
+  const change = Math.max(0, parsedAmountPaid - total);
+  const derivedStatus: "paid" | "pending" = parsedAmountPaid >= total ? "paid" : "pending";
+
+  useEffect(() => {
+    if (status !== derivedStatus) {
+      setStatus(derivedStatus);
+    }
+  }, [derivedStatus, status]);
 
   useEffect(() => {
     const loadCustomers = async () => {
       const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, phone")
-        .order("name");
+        .from("sales")
+        .select("customer_id, amount_paid, total_price, customers(id, name, phone)")
+        .not("customer_id", "is", null);
 
       if (error) {
         console.error("Failed to load customers:", error);
         return;
       }
 
-      setCustomers(data || []);
+      const customerMap = new Map<string, Customer>();
+
+      data?.forEach((sale: any) => {
+        const outstanding = Number(sale.total_price || 0) - Number(sale.amount_paid || 0);
+
+        if (sale.customers && outstanding > 0) {
+          customerMap.set(sale.customers.id, {
+            id: sale.customers.id,
+            name: sale.customers.name,
+            phone: sale.customers.phone,
+          });
+        }
+      });
+
+      setCustomers(Array.from(customerMap.values()).sort((left, right) => left.name.localeCompare(right.name)));
     };
 
     loadCustomers();
@@ -143,13 +167,13 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
         subtotal: total,
         tax: 0,
         total: total,
-        payment_method: status === "paid" ? "Cash" : "Credit",
-        amount_paid: parseFloat(amountPaid),
-        change: status === "paid" ? change : undefined,
+        payment_method: paymentMethod === "Other" ? (otherPaymentLabel || "Other") : paymentMethod,
+        amount_paid: parsedAmountPaid,
+        change: derivedStatus === "paid" ? change : undefined,
         customer_name: customerName || undefined,
         customer_phone: customerPhone || undefined,
         salesperson_name: finalSalespersonName || "Unknown",
-        status: status,
+        status: derivedStatus,
       };
       
       setReceiptData(receiptInfo);
@@ -177,8 +201,9 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
         customerId: selectedCustomerId || undefined,
         customerName: customerName || "Walk-in Customer",
         customerPhone,
-        status,
-        amountPaid: parseFloat(amountPaid),
+        status: derivedStatus,
+        amountPaid: parsedAmountPaid,
+        paymentMethod: paymentMethod === "Other" ? (otherPaymentLabel || "Other") : paymentMethod,
       });
 
       if (response.receipt?.receipt_data) {
@@ -280,6 +305,8 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
         </div>
       </div>
 
+      
+
       {/* Customer Info */}
       <div className="space-y-3">
         <div>
@@ -343,6 +370,30 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
               <SelectItem value="pending">Pending (Credit Sale)</SelectItem>
             </SelectContent>
           </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              This will automatically switch based on the amount paid.
+            </p>
+        </div>
+
+        <div>
+          <Label htmlFor="paymentMethod">Payment Method</Label>
+          <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v)}>
+            <SelectTrigger id="paymentMethod">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Cash">Cash</SelectItem>
+              <SelectItem value="Mobile Money">Mobile Money</SelectItem>
+              <SelectItem value="Other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {paymentMethod === "Other" && (
+            <div className="mt-2">
+              <Label htmlFor="otherPayment">Specify Payment Method</Label>
+              <Input id="otherPayment" value={otherPaymentLabel} onChange={(e) => setOtherPaymentLabel(e.target.value)} placeholder="e.g., Voucher, Card" />
+            </div>
+          )}
         </div>
 
         <div>
@@ -356,7 +407,7 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
           />
         </div>
 
-        {status === "paid" && (
+        {derivedStatus === "paid" && (
           <div className="text-sm p-2 bg-lime-50 dark:bg-lime-900/20 rounded text-lime-900 dark:text-lime-400">
             Change: ₵{change.toFixed(2)}
           </div>

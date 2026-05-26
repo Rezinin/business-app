@@ -4,6 +4,101 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { buildReceiptData, generateReceiptNumber, buildReceiptDataMultiple } from "@/lib/receipt-utils";
+import type { ReceiptDataPayload } from "@/lib/receipt-utils";
+
+async function storeReceipt(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  saleId: string,
+  receiptNumber: string,
+  receiptData: ReceiptDataPayload
+) {
+  try {
+    const { data, error } = await supabase
+      .from("receipts")
+      .insert({
+        sale_id: saleId,
+        receipt_number: receiptNumber,
+        receipt_data: receiptData,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      const message = error.message || "";
+      if (message.includes("public.receipts") || message.includes("receipts")) {
+        console.warn("Receipt table is unavailable; returning generated receipt data only.");
+        return null;
+      }
+
+      console.error("Receipt insert error:", error);
+      return null;
+    }
+
+    return data;
+  } catch (error: any) {
+    const message = error?.message || "";
+    if (message.includes("public.receipts") || message.includes("receipts")) {
+      console.warn("Receipt table is unavailable; returning generated receipt data only.");
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function getAllowNegativeInventorySetting(supabase: Awaited<ReturnType<typeof createClient>>) {
+  try {
+    const { data, error } = await supabase
+      .from("inventory_settings")
+      .select("allow_negative_inventory")
+      .eq("id", 1)
+      .single();
+
+    if (error || !data) {
+      return false;
+    }
+
+    return Boolean(data.allow_negative_inventory);
+  } catch {
+    return false;
+  }
+}
+
+async function assertManagerAccess(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("Not authenticated");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "manager") {
+    throw new Error("Only managers can change inventory policy");
+  }
+
+  return user;
+}
+
+export async function updateInventoryPolicy(allowNegativeInventory: boolean) {
+  const supabase = await createClient();
+  await assertManagerAccess(supabase);
+
+  const { error } = await supabase.from("inventory_settings").upsert({
+    id: 1,
+    allow_negative_inventory: allowNegativeInventory,
+  });
+
+  if (error) {
+    throw new Error(`Failed to update inventory policy: ${error.message}`);
+  }
+
+  revalidatePath("/dashboard/manager");
+  revalidatePath("/dashboard/salesperson");
+}
 
 export async function createProduct(formData: FormData) {
   const supabase = await createClient();
@@ -94,11 +189,16 @@ export async function recordSale(
   // Fetch product name
   const { data: product } = await supabase
     .from("inventory")
-    .select("name")
+    .select("name, quantity")
     .eq("id", productId)
     .single();
     
   const productName = product?.name;
+  const allowNegativeInventory = await getAllowNegativeInventorySetting(supabase);
+
+  if (!allowNegativeInventory && (product?.quantity ?? 0) < quantity) {
+    throw new Error("Not enough stock for this sale");
+  }
 
   // Fetch salesperson name
   const { data: profile } = await supabase
@@ -165,20 +265,12 @@ export async function recordSale(
     status
   );
 
-  const { data: receipt, error: receiptError } = await supabase
-    .from("receipts")
-    .insert({
-      sale_id: sale.id,
-      receipt_number: receiptData.receipt_number,
-      receipt_data: receiptData,
-    })
-    .select()
-    .single();
-
-  if (receiptError) {
-    console.error("Receipt insert error:", receiptError);
-    // Don't throw error if receipt creation fails, as the sale is already recorded
-  }
+  const receipt = await storeReceipt(
+    supabase,
+    sale.id,
+    receiptData.receipt_number,
+    receiptData
+  );
 
   // 4. Decrement inventory
   const { error: inventoryError } = await supabase.rpc('decrement_inventory', { 
@@ -356,6 +448,8 @@ export async function recordMultipleSale(data: {
   customerPhone?: string;
   status: "paid" | "pending";
   amountPaid: number;
+  paymentMethod?: string;
+  businessLogo?: string;
 }) {
   const supabase = await createClient();
   
@@ -372,7 +466,29 @@ export async function recordMultipleSale(data: {
   // Calculate totals
   const subtotal = data.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalPrice = subtotal;
-  const status = data.amountPaid >= totalPrice ? 'paid' : data.status;
+  const status = data.amountPaid >= totalPrice ? 'paid' : 'pending';
+  const allowNegativeInventory = await getAllowNegativeInventorySetting(supabase);
+
+  if (!allowNegativeInventory) {
+    const inventoryIds = data.items.map((item) => item.productId);
+    const { data: inventoryRows, error: inventoryLookupError } = await supabase
+      .from("inventory")
+      .select("id, quantity")
+      .in("id", inventoryIds);
+
+    if (inventoryLookupError) {
+      throw new Error(`Failed to validate inventory: ${inventoryLookupError.message}`);
+    }
+
+    const quantityById = new Map((inventoryRows || []).map((item) => [item.id, item.quantity]));
+
+    for (const item of data.items) {
+      const availableQuantity = Number(quantityById.get(item.productId) ?? 0);
+      if (availableQuantity < item.quantity) {
+        throw new Error(`Not enough stock for ${item.productName}`);
+      }
+    }
+  }
 
   let resolvedCustomerName = data.customerName || "Walk-in Customer";
   let resolvedCustomerPhone = data.customerPhone || "";
@@ -472,22 +588,17 @@ export async function recordMultipleSale(data: {
     resolvedCustomerPhone,
     profile?.full_name || "Unknown",
     data.amountPaid,
-    status
+    status,
+    data.paymentMethod,
+    data.businessLogo
   );
 
-  const { data: receipt, error: receiptError } = await supabase
-    .from("receipts")
-    .insert({
-      sale_id: firstSale.id,
-      receipt_number: receiptData.receipt_number,
-      receipt_data: receiptData,
-    })
-    .select()
-    .single();
-
-  if (receiptError) {
-    console.error("Receipt insert error:", receiptError);
-  }
+  const receipt = await storeReceipt(
+    supabase,
+    firstSale.id,
+    receiptData.receipt_number,
+    receiptData
+  );
 
   // 4. Decrement inventory for all items
   for (const item of data.items) {

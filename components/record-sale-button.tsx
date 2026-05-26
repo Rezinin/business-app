@@ -55,23 +55,63 @@ export function RecordSaleButton({ product }: { product: Product }) {
     // Receipt display
     const [showReceipt, setShowReceipt] = useState(false)
     const [receiptData, setReceiptData] = useState<ReceiptDataPayload | null>(null)
+    const [allowNegativeInventory, setAllowNegativeInventory] = useState(false)
 
     const supabase = createClient()
 
     useEffect(() => {
         if (open && isCredit) {
-            fetchCustomers()
+            fetchCustomersWithDebt()
         }
     }, [open, isCredit])
 
-    const fetchCustomers = async () => {
-        const { data } = await supabase.from("customers").select("id, name").order("name")
-        if (data) setCustomers(data)
+    useEffect(() => {
+        const loadInventoryPolicy = async () => {
+            const { data, error } = await supabase
+                .from("inventory_settings")
+                .select("allow_negative_inventory")
+                .eq("id", 1)
+                .single()
+
+            if (!error && data) {
+                setAllowNegativeInventory(Boolean(data.allow_negative_inventory))
+            }
+        }
+
+        loadInventoryPolicy()
+    }, [supabase])
+
+    const fetchCustomersWithDebt = async () => {
+        const { data, error } = await supabase
+            .from("sales")
+            .select("customer_id, amount_paid, total_price, customers(id, name)")
+            .not("customer_id", "is", null)
+
+        if (error) {
+            console.error("Error fetching customers with debt:", error)
+            setCustomers([])
+            return
+        }
+
+        const customerMap = new Map<string, Customer>()
+
+        data?.forEach((sale: any) => {
+            const outstanding = Number(sale.total_price || 0) - Number(sale.amount_paid || 0)
+
+            if (sale.customers && outstanding > 0) {
+                customerMap.set(sale.customers.id, {
+                    id: sale.customers.id,
+                    name: sale.customers.name,
+                })
+            }
+        })
+
+        setCustomers(Array.from(customerMap.values()).sort((left, right) => left.name.localeCompare(right.name)))
     }
 
     const handleSale = async () => {
         if (quantity <= 0) return;
-        if (quantity > product.quantity) {
+        if (!allowNegativeInventory && quantity > product.quantity) {
             alert("Not enough stock");
             return;
         }
@@ -126,8 +166,8 @@ export function RecordSaleButton({ product }: { product: Product }) {
         <>
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                    <Button className="w-full" disabled={product.quantity <= 0}>
-                        {product.quantity > 0 ? "Record Sale" : "Out of Stock"}
+                    <Button className="w-full" disabled={!allowNegativeInventory && product.quantity <= 0}>
+                        {allowNegativeInventory || product.quantity > 0 ? "Record Sale" : "Out of Stock"}
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
@@ -146,9 +186,12 @@ export function RecordSaleButton({ product }: { product: Product }) {
                                 id="quantity"
                                 type="number"
                                 min="1"
-                                max={product.quantity}
+                                max={allowNegativeInventory ? undefined : product.quantity}
                                 value={quantity}
-                                onChange={(e) => setQuantity(parseInt(e.target.value))}
+                                onChange={(e) => {
+                                    const nextQuantity = Math.max(1, parseInt(e.target.value) || 1)
+                                    setQuantity(allowNegativeInventory ? nextQuantity : Math.min(nextQuantity, product.quantity))
+                                }}
                                 className="col-span-3"
                             />
                         </div>

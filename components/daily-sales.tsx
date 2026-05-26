@@ -21,6 +21,7 @@ import { SaleActions } from "@/components/sale-actions";
 
 interface DailySalesProps {
   userId?: string; // If provided, filter by this user
+  canManageSales?: boolean;
 }
 
 interface Sale {
@@ -37,13 +38,12 @@ interface Sale {
     };
 }
 
-export function DailySales({ userId }: DailySalesProps) {
+export function DailySales({ userId, canManageSales = false }: DailySalesProps) {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [salespersonMap, setSalespersonMap] = useState<Record<string, string>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [isManager, setIsManager] = useState(false);
 
   const supabase = createClient();
 
@@ -51,12 +51,6 @@ export function DailySales({ userId }: DailySalesProps) {
     const fetchUser = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         setCurrentUserId(user?.id || null);
-        
-        if (user) {
-            const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-            // Only manager role can see Actions
-            setIsManager(profile?.role === 'manager');
-        }
     };
     fetchUser();
   }, []);
@@ -215,19 +209,19 @@ export function DailySales({ userId }: DailySalesProps) {
               <TableHead>Total</TableHead>
               <TableHead>Paid</TableHead>
               <TableHead>Salesperson</TableHead>
-              {isManager && <TableHead>Actions</TableHead>}
+                {canManageSales && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
                 <TableRow>
-                    <TableCell colSpan={isManager ? 7 : 6} className="text-center py-8">
+                  <TableCell colSpan={canManageSales ? 7 : 6} className="text-center py-8">
                         Loading sales data...
                     </TableCell>
                 </TableRow>
             ) : sales.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={isManager ? 7 : 6} className="text-center text-gray-700 dark:text-gray-300 py-8">
+                  <TableCell colSpan={canManageSales ? 7 : 6} className="text-center text-gray-700 dark:text-gray-300 py-8">
                         No sales recorded for this date.
                     </TableCell>
                 </TableRow>
@@ -253,7 +247,7 @@ export function DailySales({ userId }: DailySalesProps) {
                         ? "You" 
                         : (salespersonMap[sale.salesperson_id] || "Unknown")}
                 </TableCell>
-                {isManager && (
+                {canManageSales && (
                     <TableCell>
                         <SaleActions saleId={sale.id} />
                     </TableCell>

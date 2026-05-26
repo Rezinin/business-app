@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { InventoryManager } from "@/components/inventory-manager";
@@ -10,6 +9,7 @@ import { DebtManager } from "@/components/debt-manager";
 import { CartProvider } from "@/lib/cart-context";
 import { CartSummary } from "@/components/cart-summary";
 import { ProductGrid } from "@/components/product-grid";
+import { getAllowNegativeInventory } from "@/lib/inventory-settings";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,7 @@ export default async function ManagerDashboard() {
 
   // Fetch inventory
   const { data: inventory } = await supabase.from("inventory").select("*").order('created_at', { ascending: false });
+  const allowNegativeInventory = await getAllowNegativeInventory();
   
   // Fetch users (profiles) - fetch all except current user
   const { data: profiles, error: profilesError } = await supabase
@@ -63,7 +64,7 @@ export default async function ManagerDashboard() {
   const pendingUsersCount = sortedProfiles.filter((p) => !p.verified).length || 0;
 
   return (
-    <CartProvider>
+    <CartProvider allowNegativeInventory={allowNegativeInventory}>
       <div className="min-h-screen bg-gradient-to-br from-white via-lime-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 relative">
       {/* Nature Background Image - Light Mode */}
       <div 
@@ -142,37 +143,6 @@ export default async function ManagerDashboard() {
           <ProductGrid inventory={inventory || []} />
         </div>
 
-        {/* Stats Row */}
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card className="bg-white border-0 shadow-md rounded-xl hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Products</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold text-lime-700">{productCount}</div>
-              <p className="text-xs text-gray-500 mt-1">in inventory</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white border-0 shadow-md rounded-xl hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Low Stock Items</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold text-orange-600">{lowStockCount}</div>
-              <p className="text-xs text-gray-500 mt-1">items with &lt; 10 qty</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white border-0 shadow-md rounded-xl hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Value</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold text-lime-700">₵{totalValue.toFixed(2)}</div>
-              <p className="text-xs text-gray-500 mt-1">inventory value</p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* ===== MANAGER-ONLY SECTIONS ===== */}
         <div className="border-t-2 border-lime-200 dark:border-slate-700 pt-8">
           <div className="mb-6">
@@ -184,7 +154,10 @@ export default async function ManagerDashboard() {
 
           {/* Inventory Management */}
           <div className="space-y-8">
-            <InventoryManager inventory={inventory || []} />
+            <InventoryManager
+              inventory={inventory || []}
+              stats={{ productCount, lowStockCount, totalValue }}
+            />
           </div>
         </div>
 
@@ -193,7 +166,7 @@ export default async function ManagerDashboard() {
           <h2 className="text-2xl font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.75)]">📊 Reports</h2>
         </div>
 
-        <DailySales />
+        <DailySales canManageSales={true} />
 
         <div>
           <h2 className="text-2xl font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.75)]">💳 Debt Management</h2>
