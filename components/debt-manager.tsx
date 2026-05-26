@@ -77,42 +77,62 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
     const supabase = createClient()
 
     const fetchCustomersWithDebt = async () => {
-        // Fetch sales that are pending
-        const { data: sales } = await supabase
+        // Fetch sales that are pending AND have outstanding debt
+        const { data: sales, error } = await supabase
             .from("sales")
-            .select("customer_id, customers(id, name, phone)")
+            .select("id, customer_id, total_price, amount_paid, customers(id, name, phone)")
             .eq("status", "pending")
         
-        if (sales) {
+        if (error) {
+            console.error("Error fetching customers with debt:", error)
+            setCustomers([])
+            return
+        }
+        
+        if (sales && sales.length > 0) {
             const uniqueCustomers = new Map()
+            // Filter to only include sales with outstanding debt (amount_paid < total_price)
             sales.forEach(sale => {
-                if (sale.customers) {
+                if (sale.customers && (sale.amount_paid || 0) < sale.total_price) {
                     // @ts-ignore
                     uniqueCustomers.set(sale.customers.id, sale.customers)
                 }
             })
             setCustomers(Array.from(uniqueCustomers.values()))
+        } else {
+            setCustomers([])
         }
     }
 
     const fetchCustomerDebts = async (customerId: string) => {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from("sales")
             .select(`
-                id, created_at, total_price, amount_paid,
+                id, created_at, total_price, amount_paid, status,
                 inventory(name)
             `)
             .eq("customer_id", customerId)
             .eq("status", "pending")
+            .order("created_at", { ascending: true })
+        
+        if (error) {
+            console.error("Error fetching customer debts:", error)
+            setDebts([])
+            return
+        }
         
         if (data) {
+            // Filter to only show sales with outstanding debt
+            const outstandingDebts = data.filter((sale: any) => (sale.amount_paid || 0) < sale.total_price)
             // @ts-ignore
-            setDebts(data)
+            setDebts(outstandingDebts)
+        } else {
+            setDebts([])
         }
     }
 
     const fetchCustomerPayments = async (customerId: string) => {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from("payments")
             .select(`
                 id, created_at, amount,
@@ -124,9 +144,17 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
             .eq("sales.customer_id", customerId)
             .order("created_at", { ascending: false })
         
+        if (error) {
+            console.error("Error fetching customer payments:", error)
+            setPayments([])
+            return
+        }
+        
         if (data) {
             // @ts-ignore
-            setPayments(data)
+            setPayments(data || [])
+        } else {
+            setPayments([])
         }
     }
 

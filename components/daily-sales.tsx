@@ -54,8 +54,8 @@ export function DailySales({ userId }: DailySalesProps) {
         
         if (user) {
             const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-            // Treat 'manager' or null (developer) as manager
-            setIsManager(profile?.role === 'manager' || !profile?.role);
+            // Only manager role can see Actions
+            setIsManager(profile?.role === 'manager');
         }
     };
     fetchUser();
@@ -64,10 +64,26 @@ export function DailySales({ userId }: DailySalesProps) {
   useEffect(() => {
     const fetchSales = async () => {
       setLoading(true);
-      const startDate = new Date(selectedDate);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(selectedDate);
-      endDate.setHours(23, 59, 59, 999);
+      
+      // Parse date using UTC to avoid timezone issues
+      const parts = selectedDate.split('-');
+      
+      if (parts.length !== 3) {
+        setSales([]);
+        setLoading(false);
+        return;
+      }
+      
+      const [year, month, day] = parts.map(Number);
+      
+      if (isNaN(year) || isNaN(month) || isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) {
+        setSales([]);
+        setLoading(false);
+        return;
+      }
+      
+      const startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      const endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
       let query = supabase
         .from("sales")
@@ -139,16 +155,29 @@ export function DailySales({ userId }: DailySalesProps) {
 
     fetchSales();
 
-    // Realtime subscription
+    // Realtime subscription - listen for changes to sales table
     const channel = supabase
-        .channel('sales_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, () => {
+        .channel(`sales_${selectedDate}_${userId || 'all'}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'sales',
+            filter: userId ? `salesperson_id=eq.${userId}` : undefined
+          },
+          (payload) => {
+            console.log("Sales table change detected:", payload);
+            // Refetch sales when a change occurs
             fetchSales();
-        })
-        .subscribe();
+          }
+        )
+        .subscribe((status) => {
+          console.log("Realtime subscription status:", status);
+        });
     
     return () => {
-        supabase.removeChannel(channel);
+      channel.unsubscribe();
     };
   }, [selectedDate, userId]);
 

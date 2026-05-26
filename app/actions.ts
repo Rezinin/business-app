@@ -351,6 +351,7 @@ export async function verifyUser(userId: string) {
 
 export async function recordMultipleSale(data: {
   items: Array<{ productId: string; productName: string; quantity: number; price: number }>;
+  customerId?: string;
   customerName?: string;
   customerPhone?: string;
   status: "paid" | "pending";
@@ -373,28 +374,88 @@ export async function recordMultipleSale(data: {
   const totalPrice = subtotal;
   const status = data.amountPaid >= totalPrice ? 'paid' : data.status;
 
-  // 1. Create a master sale record with the first item
-  // For multi-item orders, we store the first item in the sales table
-  // and all items are in the receipt_data
-  const { data: sale, error: saleError } = await supabase.from("sales").insert({
-    product_id: data.items[0].productId,
-    quantity: data.items.reduce((sum, item) => sum + item.quantity, 0),
-    total_price: totalPrice,
-    salesperson_id: user.id,
-    customer_id: null, // Could be extended to support customer_id
-    amount_paid: data.amountPaid,
-    status: status
-  }).select().single();
+  let resolvedCustomerName = data.customerName || "Walk-in Customer";
+  let resolvedCustomerPhone = data.customerPhone || "";
 
-  if (saleError) {
-    console.error("Sale insert error:", saleError);
-    throw new Error(`Failed to record sale: ${saleError.message}`);
+  if (data.customerId) {
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .select("name, phone")
+      .eq("id", data.customerId)
+      .single();
+
+    if (customerError) {
+      throw new Error(`Failed to load customer: ${customerError.message}`);
+    }
+
+    resolvedCustomerName = customer?.name || resolvedCustomerName;
+    resolvedCustomerPhone = customer?.phone || resolvedCustomerPhone;
   }
 
-  // 2. Record initial payment if any
-  if (data.amountPaid > 0) {
+  // 0. Create or find customer if provided (for credit sales)
+  let customerId = data.customerId || null;
+  if (!customerId && data.customerName && data.customerName !== "Walk-in Customer") {
+    const { data: existingCustomer } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("name", data.customerName)
+      .maybeSingle();
+
+    if (existingCustomer) {
+      customerId = existingCustomer.id;
+    } else {
+      const { data: newCustomer, error: customerError } = await supabase
+        .from("customers")
+        .insert({ name: data.customerName, phone: data.customerPhone || "" })
+        .select()
+        .single();
+
+      if (customerError) {
+        console.error("Customer creation error:", customerError);
+        throw new Error(`Failed to create customer: ${customerError.message}`);
+      }
+
+      customerId = newCustomer.id;
+    }
+  }
+
+  // 1. Create individual sale records for each item (not aggregated)
+  const salesToReturn = [];
+  const firstSale = { id: "", receipt_number: "", receipt_data: null };
+  
+  for (let index = 0; index < data.items.length; index++) {
+    const item = data.items[index];
+    
+    // For credit sales, distribute amount_paid across items (proportional)
+    // For first item: put the actual amount_paid; for others: 0
+    const itemAmountPaid = index === 0 ? data.amountPaid : 0;
+    
+    const { data: sale, error: saleError } = await supabase.from("sales").insert({
+      product_id: item.productId,
+      product_name: item.productName,
+      quantity: item.quantity,
+      total_price: item.price * item.quantity,  // Price for THIS item only
+      salesperson_id: user.id,
+      customer_id: customerId,  // Set customer_id for credit sales
+      amount_paid: itemAmountPaid,  // Record the payment on first item
+      status: status
+    }).select().single();
+
+    if (saleError) {
+      console.error("Sale insert error:", saleError);
+      throw new Error(`Failed to record sale: ${saleError.message}`);
+    }
+
+    salesToReturn.push(sale);
+    if (salesToReturn.length === 1) {
+      firstSale.id = sale.id;
+    }
+  }
+
+  // 2. Record payment in payments table if amount was paid
+  if (data.amountPaid > 0 && firstSale.id) {
       await supabase.from("payments").insert({
-          sale_id: sale.id,
+          sale_id: firstSale.id,
           amount: data.amountPaid,
           recorded_by: user.id
       });
@@ -407,8 +468,8 @@ export async function recordMultipleSale(data: {
       price: item.price,
       quantity: item.quantity,
     })),
-    data.customerName,
-    data.customerPhone,
+    resolvedCustomerName,
+    resolvedCustomerPhone,
     profile?.full_name || "Unknown",
     data.amountPaid,
     status
@@ -417,7 +478,7 @@ export async function recordMultipleSale(data: {
   const { data: receipt, error: receiptError } = await supabase
     .from("receipts")
     .insert({
-      sale_id: sale.id,
+      sale_id: firstSale.id,
       receipt_number: receiptData.receipt_number,
       receipt_data: receiptData,
     })
@@ -426,7 +487,6 @@ export async function recordMultipleSale(data: {
 
   if (receiptError) {
     console.error("Receipt insert error:", receiptError);
-    // Don't throw error if receipt creation fails, as the sale is already recorded
   }
 
   // 4. Decrement inventory for all items
@@ -447,9 +507,9 @@ export async function recordMultipleSale(data: {
   revalidatePath("/dashboard/manager");
   revalidatePath("/dashboard/salesperson");
 
-  // Return both sale and receipt data
+  // Return first sale and receipt data
   return {
-    sale,
+    sale: salesToReturn[0],
     receipt: receipt || { receipt_data: receiptData },
   };
 }
