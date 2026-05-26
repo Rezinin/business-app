@@ -17,7 +17,12 @@ interface Customer {
   phone: string | null;
 }
 
-export function CheckoutForm({ onClose }: { onClose: () => void }) {
+interface CheckoutFormProps {
+  onClose: () => void;
+  onCloseGuardChange?: (blocked: boolean) => void;
+}
+
+export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps) {
   const { items, getTotal, clearCart } = useCart();
   const [status, setStatus] = useState<"paid" | "pending">("paid");
   const [customerName, setCustomerName] = useState("");
@@ -29,6 +34,8 @@ export function CheckoutForm({ onClose }: { onClose: () => void }) {
   const [receiptData, setReceiptData] = useState<ReceiptDataPayload | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [saleConfirmed, setSaleConfirmed] = useState(false);
+  const [previewPrinted, setPreviewPrinted] = useState(false);
+  const [salespersonName, setSalespersonName] = useState<string>("Current User");
   const supabase = createClient();
 
   const total = getTotal();
@@ -52,6 +59,32 @@ export function CheckoutForm({ onClose }: { onClose: () => void }) {
     loadCustomers();
   }, [supabase]);
 
+  // Load current authenticated user's profile to get the full name for receipts
+  useEffect(() => {
+    const loadSalesperson = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) {
+          const { data: profile, error } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .single();
+
+          if (!error && profile?.full_name) {
+            setSalespersonName(profile.full_name);
+          } else if (user.email) {
+            setSalespersonName(user.email.split("@")[0]);
+          }
+        }
+      } catch (e) {
+        // ignore and keep default
+      }
+    };
+
+    loadSalesperson();
+  }, [supabase]);
+
   useEffect(() => {
     if (!selectedCustomerId) return;
 
@@ -62,6 +95,12 @@ export function CheckoutForm({ onClose }: { onClose: () => void }) {
     }
   }, [customers, selectedCustomerId]);
 
+  useEffect(() => {
+    // Always clear close lock on mount/unmount for a fresh session.
+    onCloseGuardChange?.(false);
+    return () => onCloseGuardChange?.(false);
+  }, [onCloseGuardChange]);
+
   const handleCheckout = async () => {
     setLoading(true);
     try {
@@ -70,10 +109,28 @@ export function CheckoutForm({ onClose }: { onClose: () => void }) {
       const salespersonName = "Current User"; // Will be fetched if needed
       
       // Build receipt data for preview
+      const receiptNumber = `PREVIEW-${Date.now()}`;
+      // Ensure we have the latest salesperson name (avoid race with useEffect)
+      let finalSalespersonName = salespersonName;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .single();
+          if (profile?.full_name) finalSalespersonName = profile.full_name;
+          else if (user.email) finalSalespersonName = user.email.split("@")[0];
+        }
+      } catch (e) {
+        // keep existing salespersonName
+      }
+
       const receiptInfo = {
-        receipt_number: `PREVIEW-${Date.now()}`,
+        receipt_number: receiptNumber,
         business_name: "Rezinin Enterprise",
-        business_address: "Adenta, Accra",
+        business_address: "Peace Star Hotel, Wa",
         business_phone: "+233 XX XXX XXXX",
         date: new Date().toLocaleDateString(),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -91,11 +148,13 @@ export function CheckoutForm({ onClose }: { onClose: () => void }) {
         change: status === "paid" ? change : undefined,
         customer_name: customerName || undefined,
         customer_phone: customerPhone || undefined,
-        salesperson_name: salespersonName,
+        salesperson_name: finalSalespersonName || "Unknown",
         status: status,
       };
       
       setReceiptData(receiptInfo);
+      setPreviewPrinted(false);
+      onCloseGuardChange?.(false);
       setPreviewMode(true);
     } catch (error) {
       console.error("Preview error:", error);
@@ -125,6 +184,8 @@ export function CheckoutForm({ onClose }: { onClose: () => void }) {
       if (response.receipt?.receipt_data) {
         setReceiptData(response.receipt.receipt_data);
         setSaleConfirmed(true);
+        setPreviewPrinted(false);
+        onCloseGuardChange?.(false);
       }
     } catch (error) {
       console.error("Confirmation error:", error);
@@ -162,18 +223,28 @@ export function CheckoutForm({ onClose }: { onClose: () => void }) {
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-blue-800 dark:text-blue-200 text-sm">
             ℹ️ Review the receipt below. You can print or save it before confirming the sale.
           </div>
-          <POSReceipt receipt={receiptData} compact={false} />
+          <POSReceipt
+            receipt={receiptData}
+            compact={false}
+            onPrinted={() => {
+              setPreviewPrinted(true);
+              onCloseGuardChange?.(true);
+            }}
+          />
           <div className="flex gap-2">
             <Button
               onClick={() => {
-                setPreviewMode(false);
-                setReceiptData(null);
-              }}
+                  // Back & Edit is allowed until a receipt has been printed.
+                  setPreviewMode(false);
+                  setReceiptData(null);
+                  setPreviewPrinted(false);
+                  onCloseGuardChange?.(false);
+                }}
               variant="outline"
               className="flex-1"
-              disabled={loading}
+              disabled={loading || previewPrinted}
             >
-              Back & Edit
+              {previewPrinted ? "Back Disabled (Receipt Printed)" : "Back & Edit"}
             </Button>
             <Button
               onClick={handleConfirmSale}

@@ -34,6 +34,7 @@ interface ReceiptData {
 interface POSReceiptProps {
   receipt: ReceiptData;
   compact?: boolean;
+  onPrinted?: () => void;
 }
 
 function escapeHtml(value: string) {
@@ -46,14 +47,15 @@ function escapeHtml(value: string) {
 }
 
 function buildPrintableReceiptHtml(receipt: ReceiptData) {
+  const cleanedReceiptNumber = receipt.receipt_number.replace(/^PREVIEW-?/i, "");
   const itemsHtml = receipt.items
     .map(
       (item) => `
         <tr>
           <td class="item-name">${escapeHtml(item.name)}</td>
-          <td class="item-center">${item.quantity}</td>
-          <td class="item-right">₵${item.unit_price.toFixed(2)}</td>
-          <td class="item-right">₵${item.total_price.toFixed(2)}</td>
+          <td class="item-qty">${item.quantity}</td>
+          <td class="item-price">₵${item.unit_price.toFixed(2)}</td>
+          <td class="item-total">₵${item.total_price.toFixed(2)}</td>
         </tr>
       `
     )
@@ -67,106 +69,44 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Receipt ${escapeHtml(receipt.receipt_number)}</title>
         <style>
-          :root {
-            color-scheme: light;
-          }
-          * {
-            box-sizing: border-box;
-          }
+          :root { color-scheme: light; }
+          * { box-sizing: border-box; }
           body {
             margin: 0;
-            padding: 16px;
+            padding: 6px 8px;
             background: #ffffff;
-            color: #0f172a;
-            font-family: "Courier New", Courier, monospace;
+            color: #000000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 12px;
           }
+          /* Narrow receipt width for thermal printers */
           .sheet {
             width: 100%;
-            max-width: 360px;
+            max-width: 320px;
             margin: 0 auto;
-            border: 2px solid #111827;
-            border-radius: 10px;
-            padding: 18px;
-            background: #ffffff;
+            padding: 6px 8px;
           }
-          .title {
-            text-align: center;
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 6px;
-          }
-          .subtle {
-            text-align: center;
-            font-size: 12px;
-            line-height: 1.5;
-            color: #334155;
-          }
-          .divider {
-            border-top: 2px solid #111827;
-            border-bottom: 2px solid #111827;
-            padding: 8px 0;
-            margin: 14px 0;
-            text-align: center;
-            font-size: 12px;
-          }
-          .section {
-            margin: 12px 0;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-          }
-          th, td {
-            padding: 4px 0;
-            vertical-align: top;
-          }
-          th {
-            border-top: 1px solid #cbd5e1;
-            border-bottom: 1px solid #cbd5e1;
-            text-align: left;
-            font-weight: 700;
-            padding-top: 8px;
-            padding-bottom: 8px;
-          }
-          .item-name { width: 54%; }
-          .item-center { width: 12%; text-align: center; }
-          .item-right { width: 17%; text-align: right; }
-          .row {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            margin: 4px 0;
-            font-size: 13px;
-          }
-          .row strong {
-            font-size: 15px;
-          }
-          .totals {
-            border-top: 1px solid #cbd5e1;
-            border-bottom: 1px solid #111827;
-            padding: 10px 0;
-            margin-top: 8px;
-          }
-          .footer {
-            margin-top: 14px;
-            text-align: center;
-            font-size: 12px;
-            color: #334155;
-          }
-          .status {
-            color: #b91c1c;
-            font-weight: 700;
-          }
+          .title { text-align: center; font-size: 16px; font-weight: 800; margin-bottom: 2px; }
+          .subtle { text-align: center; font-size: 11px; line-height: 1.3; color: #222222; }
+          .divider { border-top: 1px dashed #222; margin: 8px 0; padding-top: 6px; padding-bottom: 6px; text-align: left; }
+          .section { margin: 6px 0; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { padding: 2px 0; vertical-align: top; }
+          thead th { font-weight: 700; text-align: left; padding-top: 4px; padding-bottom: 4px; }
+          .item-name { width: 60%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .item-qty { width: 8%; text-align: center; }
+          .item-price { width: 16%; text-align: right; }
+          .item-total { width: 16%; text-align: right; }
+          .row { display:flex; justify-content:space-between; gap:8px; font-size:13px; }
+          .totals { border-top: 1px solid #222; padding-top: 6px; margin-top: 6px; }
+          .totals .label { font-size: 12px; }
+          .totals .value { font-size: 12px; text-align: right; }
+          .grand { font-weight: 900; font-size: 16px; }
+          .footer { margin-top: 8px; text-align: center; font-size: 11px; color: #222; }
+          .status { color: #b91c1c; font-weight: 700; }
           @media print {
-            body {
-              padding: 0;
-            }
-            .sheet {
-              border: 0;
-              border-radius: 0;
-              max-width: none;
-            }
+            body { padding: 0; }
+            .sheet { max-width: 320px; }
           }
         </style>
       </head>
@@ -178,7 +118,7 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
 
           <div class="divider">
             <div><strong>SALES RECEIPT</strong></div>
-            <div>Receipt #${escapeHtml(receipt.receipt_number)}</div>
+            <div>Receipt #${escapeHtml(cleanedReceiptNumber)}</div>
             <div>${escapeHtml(receipt.date)} ${escapeHtml(receipt.time)}</div>
           </div>
 
@@ -187,9 +127,9 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
               <thead>
                 <tr>
                   <th class="item-name">Item</th>
-                  <th class="item-center">Qty</th>
-                  <th class="item-right">Price</th>
-                  <th class="item-right">Total</th>
+                  <th class="item-qty">Qty</th>
+                  <th class="item-price">Price</th>
+                  <th class="item-total">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -199,9 +139,9 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
           </div>
 
           <div class="section totals">
-            <div class="row"><span>Subtotal</span><span>₵${receipt.subtotal.toFixed(2)}</span></div>
-            ${receipt.tax && receipt.tax > 0 ? `<div class="row"><span>Tax</span><span>₵${receipt.tax.toFixed(2)}</span></div>` : ""}
-            <div class="row"><strong>TOTAL</strong><strong>₵${receipt.total.toFixed(2)}</strong></div>
+            <div class="row"><span class="label">Subtotal</span><span class="value">₵${receipt.subtotal.toFixed(2)}</span></div>
+            ${receipt.tax && receipt.tax > 0 ? `<div class="row"><span class="label">Tax</span><span class="value">₵${receipt.tax.toFixed(2)}</span></div>` : ""}
+            <div class="row totals"><span class="label grand">TOTAL</span><span class="value grand">₵${receipt.total.toFixed(2)}</span></div>
           </div>
 
           <div class="section">
@@ -229,7 +169,7 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
   `;
 }
 
-export function POSReceipt({ receipt, compact = false }: POSReceiptProps) {
+export function POSReceipt({ receipt, compact = false, onPrinted }: POSReceiptProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [printed, setPrinted] = useState(false);
 
@@ -240,6 +180,7 @@ export function POSReceipt({ receipt, compact = false }: POSReceiptProps) {
       printWindow.document.close();
       printWindow.print();
       setPrinted(true);
+      if (typeof onPrinted === "function") onPrinted();
     }
   };
 
@@ -251,6 +192,7 @@ export function POSReceipt({ receipt, compact = false }: POSReceiptProps) {
       printWindow.focus();
       printWindow.print();
       setPrinted(true);
+      if (typeof onPrinted === "function") onPrinted();
     }
   };
 

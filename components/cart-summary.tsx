@@ -18,6 +18,7 @@ import { CheckoutForm } from "@/components/checkout-form";
 export function CartSummary() {
   const { items, removeItem, updateQuantity, getTotal, clearCart } = useCart();
   const [showCheckout, setShowCheckout] = useState(false);
+  const [closeBlocked, setCloseBlocked] = useState(false);
 
   if (items.length === 0) {
     return (
@@ -93,7 +94,11 @@ export function CartSummary() {
           {/* Actions */}
           <div className="flex gap-2">
             <Button
-              onClick={() => setShowCheckout(true)}
+              onClick={() => {
+                // Always start a fresh checkout session; lock state is managed live by CheckoutForm.
+                setCloseBlocked(false);
+                setShowCheckout(true);
+              }}
               className="flex-1 bg-lime-600 hover:bg-lime-700 text-white"
             >
               Checkout
@@ -109,7 +114,24 @@ export function CartSummary() {
         </CardContent>
       </Card>
 
-      <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
+      <Dialog
+        open={showCheckout}
+        onOpenChange={(open) => {
+          if (!open) {
+            // Block closing only while the current open checkout is in printed-preview lock state.
+            if (closeBlocked) {
+              alert("A printed receipt exists for the current preview. Please 'Confirm & Record Sale' before closing.");
+              return;
+            }
+          }
+
+          if (!open) {
+            setCloseBlocked(false);
+          }
+
+          setShowCheckout(open);
+        }}
+      >
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw]">
           <DialogHeader>
             <DialogTitle>Complete Order</DialogTitle>
@@ -117,7 +139,13 @@ export function CartSummary() {
               Review the order, complete payment, and print or download the receipt.
             </DialogDescription>
           </DialogHeader>
-          <CheckoutForm onClose={() => setShowCheckout(false)} />
+          <CheckoutForm
+            onClose={() => {
+              setCloseBlocked(false);
+              setShowCheckout(false);
+            }}
+            onCloseGuardChange={setCloseBlocked}
+          />
         </DialogContent>
       </Dialog>
     </>
