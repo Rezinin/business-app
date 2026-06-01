@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DailySales } from "@/components/daily-sales";
 import { ProductGrid } from "@/components/product-grid";
 import { DebtManager } from "@/components/debt-manager";
+import { InventoryManager } from "@/components/inventory-manager";
 import { CartProvider } from "@/lib/cart-context";
 import { CartSummary } from "@/components/cart-summary";
 import { getAllowNegativeInventory } from "@/lib/inventory-settings";
@@ -27,9 +28,19 @@ export default async function SalespersonDashboard() {
     return redirect("/auth/login");
   }
 
+  // Fetch current user profile to check permissions
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("role, can_add_products")
+    .eq("id", user.id)
+    .single();
+
   // Fetch inventory
   const { data: inventory } = await supabase.from("inventory").select("*");
   const allowNegativeInventory = await getAllowNegativeInventory();
+
+  // Check if user is actually a manager who can view as salesperson
+  const isManager = currentProfile?.role === "manager";
 
   return (
     <CartProvider allowNegativeInventory={allowNegativeInventory}>
@@ -78,9 +89,11 @@ export default async function SalespersonDashboard() {
                 </DialogContent>
               </Dialog>
 
-              <Button asChild variant="outline" className="flex-1 md:flex-none border-lime-600 text-lime-700 hover:text-white hover:bg-lime-600 rounded-lg transition-colors">
-                <Link href="/dashboard/manager">View as Manager</Link>
-              </Button>
+              {isManager && (
+                <Button asChild variant="outline" className="flex-1 md:flex-none border-lime-600 text-lime-700 hover:text-white hover:bg-lime-600 rounded-lg transition-colors">
+                  <Link href="/dashboard/manager">View as Manager</Link>
+                </Button>
+              )}
               <form action="/auth/signout" method="post" className="flex-1 md:flex-none">
                 <Button variant="destructive" className="w-full rounded-lg">Sign Out</Button>
               </form>
@@ -93,6 +106,22 @@ export default async function SalespersonDashboard() {
         <CartSummary />
 
         <ProductGrid inventory={inventory || []} />
+
+        {currentProfile?.can_add_products && (
+          <div className="border-t-2 border-lime-200 dark:border-slate-700 pt-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.75)] flex items-center gap-2">
+                <span>📦</span> Manage Products
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Add and manage inventory items</p>
+            </div>
+            <InventoryManager 
+              inventory={inventory || []} 
+              canAdd={true}
+              canDelete={false}
+            />
+          </div>
+        )}
 
         <DailySales />
       </div>

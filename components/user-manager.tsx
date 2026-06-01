@@ -1,6 +1,6 @@
 "use client";
 
-import { deleteUser, verifyUser } from "@/app/actions";
+import { deleteUser, verifyUser, toggleSalespersonProductAccess } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash, UserPlus, CheckCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, Trash, UserPlus, CheckCircle, Loader2, Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 
@@ -42,6 +42,18 @@ export function UserManager({ users }: { users: any[] }) {
       }
   };
 
+  const handleToggleProductAccess = async (userId: string, currentValue: boolean) => {
+      setLoadingId(userId);
+      try {
+          await toggleSalespersonProductAccess(userId, !currentValue);
+      } catch (error) {
+          console.error(error);
+          alert("Failed to update product access permissions.");
+      } finally {
+          setLoadingId(null);
+      }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -57,12 +69,13 @@ export function UserManager({ users }: { users: any[] }) {
                     <h3 className="font-bold">{user.full_name || "Unknown Name"}</h3>
                     {!user.verified && <Badge variant="destructive">Pending</Badge>}
                     {user.verified && <Badge variant="secondary">Verified</Badge>}
+                    {user.role === "salesperson" && user.can_add_products && <Badge className="bg-blue-600">Can Add Products</Badge>}
                 </div>
                 <p className="text-sm text-muted-foreground capitalize">{user.role}</p>
                 <p className="text-xs text-muted-foreground">ID: {user.id}</p>
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                   {!user.verified && (
                       <Button 
                         size="sm" 
@@ -76,6 +89,23 @@ export function UserManager({ users }: { users: any[] }) {
                               <CheckCircle className="mr-2 h-4 w-4" />
                           )}
                           Verify
+                      </Button>
+                  )}
+
+                  {user.role === "salesperson" && user.verified && (
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleToggleProductAccess(user.id, user.can_add_products)}
+                        disabled={loadingId === user.id}
+                        variant={user.can_add_products ? "default" : "outline"}
+                        className={user.can_add_products ? "bg-blue-600 hover:bg-blue-700" : ""}
+                      >
+                          {loadingId === user.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                              <Package className="mr-2 h-4 w-4" />
+                          )}
+                          {user.can_add_products ? "Can Add" : "Cannot Add"}
                       </Button>
                   )}
 

@@ -441,6 +441,26 @@ export async function verifyUser(userId: string) {
   revalidatePath("/dashboard/manager");
 }
 
+export async function toggleSalespersonProductAccess(userId: string, canAdd: boolean) {
+  const supabase = await createClient();
+  
+  // Check if current user is manager
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  
+  const { error } = await supabase
+    .from("profiles")
+    .update({ can_add_products: canAdd })
+    .eq("id", userId);
+
+  if (error) {
+    console.error("Error updating salesperson permissions:", error);
+    throw new Error("Failed to update permissions");
+  }
+
+  revalidatePath("/dashboard/manager");
+}
+
 export async function recordMultipleSale(data: {
   items: Array<{ productId: string; productName: string; quantity: number; price: number }>;
   customerId?: string;

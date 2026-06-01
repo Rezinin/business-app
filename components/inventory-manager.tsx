@@ -22,7 +22,7 @@ type InventoryStats = {
   totalValue: number;
 };
 
-export function InventoryManager({ inventory, stats }: { inventory: any[]; stats?: InventoryStats }) {
+export function InventoryManager({ inventory, stats, canAdd = true, canDelete = true }: { inventory: any[]; stats?: InventoryStats; canAdd?: boolean; canDelete?: boolean }) {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,7 +83,7 @@ export function InventoryManager({ inventory, stats }: { inventory: any[]; stats
             </div>
         </div>
 
-        <Button onClick={() => setIsAdding(!isAdding)} className="ml-auto shrink-0">
+        <Button onClick={() => setIsAdding(!isAdding)} className="ml-auto shrink-0" disabled={!canAdd}>
           {isAdding ? "Cancel" : "Add Product"}
         </Button>
       </div>
@@ -253,17 +253,19 @@ export function InventoryManager({ inventory, stats }: { inventory: any[]; stats
                           <Edit className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={async () => {
-                            if (confirm("Are you sure?")) {
-                              await deleteProduct(item.id);
-                            }
-                          }}
-                        >
-                          <Trash className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
+                        {canDelete && (
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={async () => {
+                              if (confirm("Are you sure?")) {
+                                await deleteProduct(item.id);
+                              }
+                            }}
+                          >
+                            <Trash className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
