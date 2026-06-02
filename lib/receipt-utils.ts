@@ -144,7 +144,7 @@ export function buildReceiptDataMultiple(
     receipt_number: generateReceiptNumber(),
     business_name: "Rezinin Enterprise",
     business_address: "Ghana",
-    business_phone: "+233 XXX XXX XXXX",
+    business_phone: "+233 24 995 7751",
     date,
     time,
     items: receiptItems,

@@ -155,7 +155,7 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
         receipt_number: receiptNumber,
         business_name: "Rezinin Enterprise",
         business_address: "Peace Star Hotel, Wa",
-        business_phone: "+233 XX XXX XXXX",
+        business_phone: "+233 24 995 7751",
         date: new Date().toLocaleDateString(),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         items: items.map(item => ({

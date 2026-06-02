@@ -65,7 +65,7 @@ export default async function ManagerDashboard() {
 
   return (
     <CartProvider allowNegativeInventory={allowNegativeInventory}>
-      <div className="min-h-screen bg-gradient-to-br from-white via-lime-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 relative">
+      <div className="min-h-screen bg-gradient-to-br from-white via-lime-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 relative" suppressHydrationWarning>
       {/* Nature Background Image - Light Mode */}
       <div 
         className="fixed inset-0 z-0 opacity-4 pointer-events-none dark:hidden"
