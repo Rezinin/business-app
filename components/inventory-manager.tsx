@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createProduct, updateProduct, deleteProduct, updateInventoryPolicy } from "@/app/actions"
+import { createProduct, updateProduct, restockProduct, deleteProduct, updateInventoryPolicy } from "@/app/actions"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash, Edit, Search, Info } from "lucide-react";
+import { MoreHorizontal, Trash, Edit, Search, Info, RotateCcw, Plus } from "lucide-react";
 import { useCart } from "@/lib/cart-context"
 
 type InventoryStats = {
@@ -24,8 +24,9 @@ type InventoryStats = {
 
 export function InventoryManager({ inventory, stats, canAdd = true, canDelete = true }: { inventory: any[]; stats?: InventoryStats; canAdd?: boolean; canDelete?: boolean }) {
   const [isEditing, setIsEditing] = useState<string | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+    const [isAdding, setIsAdding] = useState(false);
+    const [addMode, setAddMode] = useState<"new" | "restock">("new");
+    const [searchTerm, setSearchTerm] = useState("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [savingPolicy, setSavingPolicy] = useState(false)
   const { allowNegativeInventory, setAllowNegativeInventory } = useCart()
@@ -41,9 +42,18 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
   }
 
   const filteredInventory = inventory.filter((item) =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.sku.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const handleAddProductClick = () => {
+      if (!isAdding) {
+        setAddMode("new");
+        setIsAdding(true);
+      } else {
+        setIsAdding(false);
+      }
+    };
 
   return (
     <div className="space-y-6">
@@ -83,9 +93,35 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
             </div>
         </div>
 
-        <Button onClick={() => setIsAdding(!isAdding)} className="ml-auto shrink-0" disabled={!canAdd}>
-          {isAdding ? "Cancel" : "Add Product"}
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+                  {isAdding ? (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={addMode === "new" ? "default" : "outline"}
+                        onClick={() => setAddMode("new")}
+                        className="gap-1"
+                      >
+                        <Plus className="h-4 w-4" />
+                        New Product
+                      </Button>
+                      <Button
+                        variant={addMode === "restock" ? "default" : "outline"}
+                        onClick={() => setAddMode("restock")}
+                        className="gap-1"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Restock Existing
+                      </Button>
+                      <Button variant="outline" onClick={() => setIsAdding(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button onClick={handleAddProductClick} disabled={!canAdd}>
+                      Add Product
+                    </Button>
+                  )}
+                </div>
       </div>
 
       {stats && (
@@ -130,46 +166,109 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
         />
       </div>
 
-      {isAdding && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add New Product</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              action={async (formData) => {
-                await createProduct(formData);
-                setIsAdding(false);
-              }}
-              className="grid gap-4"
-            >
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input id="name" name="name" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sku">SKU</Label>
-                  <Input id="sku" name="sku" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="price">Price</Label>
-                  <Input id="price" name="price" type="number" step="0.01" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input id="quantity" name="quantity" type="number" required />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Input id="description" name="description" />
-              </div>
-              <Button type="submit">Save Product</Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+      {isAdding && addMode === "new" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Add New Product</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    action={async (formData) => {
+                      await createProduct(formData);
+                      setIsAdding(false);
+                    }}
+                    className="grid gap-4"
+                  >
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Name</Label>
+                        <Input id="name" name="name" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="sku">SKU</Label>
+                        <Input id="sku" name="sku" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="price">Price</Label>
+                        <Input id="price" name="price" type="number" step="0.01" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="quantity">Quantity</Label>
+                        <Input id="quantity" name="quantity" type="number" required />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Input id="description" name="description" />
+                    </div>
+                    <Button type="submit">Save Product</Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {isAdding && addMode === "restock" && (
+                          <Card>
+                            <CardHeader>
+                              <CardTitle>Restock Existing Product</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <form
+                                action={async (formData) => {
+                                  await restockProduct(formData);
+                                  setIsAdding(false);
+                                  setAddMode("new");
+                                }}
+                    className="grid gap-4"
+                  >
+                    <div className="space-y-2">
+                      <Label htmlFor="product-select">Select Product</Label>
+                      <select id="product-select" name="id" required className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                        <option value="">-- Choose a product to restock --</option>
+                        {inventory.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name} (SKU: {item.sku}) - Current Qty: {item.quantity}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Name</Label>
+                        <Input id="name" name="name" disabled className="bg-muted" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="sku">SKU</Label>
+                        <Input id="sku" name="sku" disabled className="bg-muted" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="price">Price</Label>
+                        <Input id="price" name="price" type="number" step="0.01" disabled className="bg-muted" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="currentQuantity">Current Quantity</Label>
+                        <Input id="currentQuantity" name="currentQuantity" type="number" disabled className="bg-muted" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="quantity">Additional Quantity to Add</Label>
+                      <Input id="quantity" name="quantity" type="number" required min="1" placeholder="Enter quantity to add" />
+                      <p className="text-sm text-muted-foreground">This will be added to the current stock quantity.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Input id="description" name="description" disabled className="bg-muted" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit">Restock Product</Button>
+                      <Button type="button" variant="outline" onClick={() => { setAddMode("new"); setIsAdding(false); }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
 
       <div className="grid gap-4">
         {filteredInventory.map((item) => (

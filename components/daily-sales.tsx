@@ -166,11 +166,12 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
             fetchSales();
           }
         )
-        .subscribe((status) => {
+        .subscribe((status, error) => {
           console.log("Realtime subscription status:", status);
-        }, (error) => {
+          if (error) {
           // Silently handle realtime connection errors - app still works fine without real-time updates
           console.warn("Realtime connection error (non-critical):", error?.message);
+          }
         });
     
     return () => {

@@ -150,6 +150,39 @@ export async function updateProduct(formData: FormData) {
   revalidatePath("/dashboard/salesperson");
 }
 
+export async function restockProduct(formData: FormData) {
+  const supabase = await createClient();
+
+  const id = formData.get("id") as string;
+  const additionalQuantity = parseInt(formData.get("quantity") as string);
+
+  // Fetch current product to get existing quantity
+  const { data: product, error: fetchError } = await supabase
+    .from("inventory")
+    .select("quantity")
+    .eq("id", id)
+    .single();
+    
+  if (fetchError || !product) {
+    console.error("Error fetching product for restock:", fetchError);
+    throw new Error("Failed to fetch product for restock");
+  }
+
+  const newQuantity = product.quantity + additionalQuantity;
+  const { error } = await supabase
+    .from("inventory")
+    .update({ quantity: newQuantity })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error restocking product:", error);
+    throw new Error("Failed to restock product");
+  }
+
+  revalidatePath("/dashboard/manager");
+  revalidatePath("/dashboard/salesperson");
+}
+
 export async function deleteProduct(id: string) {
   const supabase = await createClient();
 
@@ -175,14 +208,14 @@ export async function createCustomer(name: string, phone: string) {
 }
 
 export async function recordSale(
-  productId: string, 
-  quantity: number, 
+  productId: string,
+  quantity: number,
   price: number,
   customerId?: string,
   amountPaid?: number
 ) {
   const supabase = await createClient();
-  
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
@@ -192,7 +225,7 @@ export async function recordSale(
     .select("name, quantity")
     .eq("id", productId)
     .single();
-    
+
   const productName = product?.name;
   const allowNegativeInventory = await getAllowNegativeInventorySetting(supabase);
 
@@ -273,9 +306,9 @@ export async function recordSale(
   );
 
   // 4. Decrement inventory
-  const { error: inventoryError } = await supabase.rpc('decrement_inventory', { 
-    row_id: productId, 
-    amount: quantity 
+  const { error: inventoryError } = await supabase.rpc('decrement_inventory', {
+    row_id: productId,
+    amount: quantity
   });
 
   if (inventoryError) {
@@ -382,7 +415,7 @@ export async function deleteSale(saleId: string) {
     if (!user) throw new Error("Not authenticated");
 
     // Ideally check if user is manager here
-    
+
     // Get sale details to restore inventory
     const { data: sale } = await supabase.from("sales").select("*").eq("id", saleId).single();
     if (!sale) throw new Error("Sale not found");
@@ -409,25 +442,25 @@ export async function deleteUser(userId: string) {
     // This requires Service Role Key to delete from auth.users
     // For now, we will just delete from profiles which might be enough for the UI
     const supabase = await createClient();
-    
+
     // Check if user is manager
     // ...
 
     const { error } = await supabase.from("profiles").delete().eq("id", userId);
-    
+
     if (error) throw error;
     revalidatePath("/dashboard/manager");
 }
 
 export async function verifyUser(userId: string) {
   const supabase = await createClient();
-  
+
   // Check if current user is manager
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  
+
   // In a real app, verify the current user is a manager here
-  
+
   const { error } = await supabase
     .from("profiles")
     .update({ verified: true })
@@ -443,11 +476,11 @@ export async function verifyUser(userId: string) {
 
 export async function toggleSalespersonProductAccess(userId: string, canAdd: boolean) {
   const supabase = await createClient();
-  
+
   // Check if current user is manager
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  
+
   const { error } = await supabase
     .from("profiles")
     .update({ can_add_products: canAdd })
@@ -472,7 +505,7 @@ export async function recordMultipleSale(data: {
   businessLogo?: string;
 }) {
   const supabase = await createClient();
-  
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
@@ -558,14 +591,14 @@ export async function recordMultipleSale(data: {
   // 1. Create individual sale records for each item (not aggregated)
   const salesToReturn = [];
   const firstSale = { id: "", receipt_number: "", receipt_data: null };
-  
+
   for (let index = 0; index < data.items.length; index++) {
     const item = data.items[index];
-    
+
     // For credit sales, distribute amount_paid across items (proportional)
     // For first item: put the actual amount_paid; for others: 0
     const itemAmountPaid = index === 0 ? data.amountPaid : 0;
-    
+
     const { data: sale, error: saleError } = await supabase.from("sales").insert({
       product_id: item.productId,
       product_name: item.productName,
@@ -622,9 +655,9 @@ export async function recordMultipleSale(data: {
 
   // 4. Decrement inventory for all items
   for (const item of data.items) {
-    const { error: inventoryError } = await supabase.rpc('decrement_inventory', { 
-      row_id: item.productId, 
-      amount: item.quantity 
+    const { error: inventoryError } = await supabase.rpc('decrement_inventory', {
+      row_id: item.productId,
+      amount: item.quantity
     });
 
     if (inventoryError) {
@@ -644,3 +677,4 @@ export async function recordMultipleSale(data: {
     receipt: receipt || { receipt_data: receiptData },
   };
 }
+
