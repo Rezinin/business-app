@@ -502,6 +502,36 @@ export async function toggleSalespersonProductAccess(userId: string, canAdd: boo
   revalidatePath("/dashboard/manager");
 }
 
+export async function toggleUserBlock(userId: string, blocked: boolean) {
+  const supabase = await createClient();
+
+  // Check if current user is manager
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (currentProfile?.role !== "manager" && currentProfile?.role !== null) {
+    throw new Error("Only managers can block/unblock users");
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ blocked })
+    .eq("id", userId);
+
+  if (error) {
+    console.error("Error toggling user block:", error);
+    throw new Error("Failed to update user block status");
+  }
+
+  revalidatePath("/dashboard/manager");
+}
+
 export async function recordMultipleSale(data: {
   items: Array<{ productId: string; productName: string; quantity: number; price: number }>;
   customerId?: string;
