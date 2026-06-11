@@ -83,7 +83,7 @@ export default async function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 px-4 bg-gradient-to-br from-lime-50 to-transparent dark:from-slate-800/50 dark:to-transparent">
+      <section id="features" className="py-20 px-4 bg-gradient-to-br from-lime-50 to-transparent dark:from-slate-800/50 dark:to-transparent">
         <div className="max-w-5xl mx-auto">
           <h3 className="text-center text-4xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 dark:from-lime-400 dark:to-emerald-400 bg-clip-text text-transparent mb-16">
             ✨ Powerful Features

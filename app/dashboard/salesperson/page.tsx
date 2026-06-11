@@ -65,12 +65,12 @@ export default async function SalespersonDashboard() {
       />
       
       {/* Header */}
-      <div className="bg-white border-b border-lime-100 sticky top-0 z-40">
+      <div className="bg-white dark:bg-slate-900/90 dark:backdrop-blur-md border-b border-lime-100 dark:border-slate-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 dark:from-lime-400 dark:to-emerald-400 bg-clip-text text-transparent drop-shadow-md">💼 Sales Dashboard</h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 dark:from-lime-400 dark:to-emerald-400 bg-clip-text text-transparent drop-shadow-md">Sales Dashboard</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Record and track sales transactions
               </p>
             </div>
@@ -99,19 +99,51 @@ export default async function SalespersonDashboard() {
               </form>
             </div>
           </div>
+
+          {/* Section Navigation */}
+          <nav className="mt-4 -mx-4 md:mx-0 overflow-x-auto" aria-label="Dashboard sections">
+            <ul className="flex items-center gap-1 px-4 md:px-0 min-w-max">
+              <li>
+                <a href="#cart" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-gray-700 hover:text-lime-700 hover:bg-lime-50 dark:text-gray-200 dark:hover:bg-slate-800 dark:hover:text-lime-400 transition-colors">
+                  Cart
+                </a>
+              </li>
+              <li>
+                <a href="#products" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-gray-700 hover:text-lime-700 hover:bg-lime-50 dark:text-gray-200 dark:hover:bg-slate-800 dark:hover:text-lime-400 transition-colors">
+                  Products
+                </a>
+              </li>
+              {currentProfile?.can_add_products && (
+                <li>
+                  <a href="#manage-products" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-gray-700 hover:text-lime-700 hover:bg-lime-50 dark:text-gray-200 dark:hover:bg-slate-800 dark:hover:text-lime-400 transition-colors">
+                    Add Products
+                  </a>
+                </li>
+              )}
+              <li>
+                <a href="#sales-report" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-gray-700 hover:text-lime-700 hover:bg-lime-50 dark:text-gray-200 dark:hover:bg-slate-800 dark:hover:text-lime-400 transition-colors">
+                  Sales Report
+                </a>
+              </li>
+            </ul>
+          </nav>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-8 relative z-10">
-        <CartSummary />
+        <div id="cart" className="scroll-mt-48">
+          <CartSummary />
+        </div>
 
-        <ProductGrid inventory={inventory || []} />
+        <div id="products" className="scroll-mt-48">
+          <ProductGrid inventory={inventory || []} />
+        </div>
 
         {currentProfile?.can_add_products && (
-          <div className="border-t-2 border-lime-200 dark:border-slate-700 pt-8">
+          <div id="manage-products" className="border-t-2 border-lime-200 dark:border-slate-700 pt-8 scroll-mt-48">
             <div className="mb-6">
               <h2 className="text-xl font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.75)] flex items-center gap-2">
-                <span>📦</span> Manage Products
+                Manage Products
               </h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Add and manage inventory items</p>
             </div>
@@ -123,7 +155,9 @@ export default async function SalespersonDashboard() {
           </div>
         )}
 
-        <DailySales />
+        <div id="sales-report" className="scroll-mt-48">
+          <DailySales />
+        </div>
       </div>
       </div>
     </CartProvider>

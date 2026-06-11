@@ -30,6 +30,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [savingPolicy, setSavingPolicy] = useState(false)
   const { allowNegativeInventory, setAllowNegativeInventory } = useCart()
+  const [error, setError] = useState<string | null>(null);
 
   const toggleDescription = (id: string) => {
       const newSet = new Set(expandedItems);
@@ -47,6 +48,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
     );
 
     const handleAddProductClick = () => {
+      setError(null);
       if (!isAdding) {
         setAddMode("new");
         setIsAdding(true);
@@ -112,7 +114,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                         <RotateCcw className="h-4 w-4" />
                         Restock Existing
                       </Button>
-                      <Button variant="outline" onClick={() => setIsAdding(false)}>
+                      <Button variant="outline" onClick={() => { setIsAdding(false); setError(null); }}>
                         Cancel
                       </Button>
                     </div>
@@ -174,11 +176,25 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                 <CardContent>
                   <form
                     action={async (formData) => {
-                      await createProduct(formData);
-                      setIsAdding(false);
+                      setError(null);
+                      try {
+                        const result = await createProduct(formData);
+                         if (result && !result.success) {
+                           setError(result.error || "Failed to create product");
+                         } else {
+                          setIsAdding(false);
+                        }
+                      } catch (err: any) {
+                        setError(err.message || "Failed to create product");
+                      }
                     }}
                     className="grid gap-4"
                   >
+                    {error && (
+                      <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm font-medium">
+                        {error}
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Name</Label>
@@ -261,7 +277,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                     </div>
                     <div className="flex gap-2">
                       <Button type="submit">Restock Product</Button>
-                      <Button type="button" variant="outline" onClick={() => { setAddMode("new"); setIsAdding(false); }}>
+                      <Button type="button" variant="outline" onClick={() => { setAddMode("new"); setIsAdding(false); setError(null); }}>
                         Cancel
                       </Button>
                     </div>
@@ -277,11 +293,25 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
               {isEditing === item.id ? (
                 <form
                   action={async (formData) => {
-                    await updateProduct(formData);
-                    setIsEditing(null);
+                    setError(null);
+                    try {
+                      const result = await updateProduct(formData);
+                      if (result && !result.success) {
+                        setError(result.error || "Failed to update product");
+                      } else {
+                        setIsEditing(null);
+                      }
+                    } catch (err: any) {
+                      setError(err.message || "Failed to update product");
+                    }
                   }}
                   className="grid gap-4"
                 >
+                  {error && (
+                    <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm font-medium">
+                      {error}
+                    </div>
+                  )}
                   <input type="hidden" name="id" value={item.id} />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -307,7 +337,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                   </div>
                   <div className="flex gap-2">
                     <Button type="submit">Save Changes</Button>
-                    <Button type="button" variant="outline" onClick={() => setIsEditing(null)}>
+                    <Button type="button" variant="outline" onClick={() => { setIsEditing(null); setError(null); }}>
                       Cancel
                     </Button>
                   </div>
@@ -349,7 +379,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setIsEditing(item.id)}>
+                          <DropdownMenuItem onClick={() => { setIsEditing(item.id); setError(null); }}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>

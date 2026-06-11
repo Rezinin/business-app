@@ -119,11 +119,15 @@ export async function createProduct(formData: FormData) {
 
   if (error) {
     console.error("Error creating product:", error);
-    throw new Error("Failed to create product");
+    if (error.code === "23505") {
+      return { success: false, error: "A product with this SKU already exists." };
+    }
+    return { success: false, error: error.message || "Failed to create product" };
   }
 
   revalidatePath("/dashboard/manager");
   revalidatePath("/dashboard/salesperson");
+  return { success: true };
 }
 
 export async function updateProduct(formData: FormData) {
@@ -143,11 +147,15 @@ export async function updateProduct(formData: FormData) {
 
   if (error) {
     console.error("Error updating product:", error);
-    throw new Error("Failed to update product");
+    if (error.code === "23505") {
+      return { success: false, error: "A product with this SKU already exists." };
+    }
+    return { success: false, error: error.message || "Failed to update product" };
   }
 
   revalidatePath("/dashboard/manager");
   revalidatePath("/dashboard/salesperson");
+  return { success: true };
 }
 
 export async function restockProduct(formData: FormData) {
