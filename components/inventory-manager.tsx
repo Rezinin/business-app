@@ -31,6 +31,15 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
   const [savingPolicy, setSavingPolicy] = useState(false)
   const { allowNegativeInventory, setAllowNegativeInventory } = useCart()
   const [error, setError] = useState<string | null>(null);
+  const [restockSearchTerm, setRestockSearchTerm] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const filteredRestockInventory = inventory.filter((item) =>
+    item.name.toLowerCase().includes(restockSearchTerm.toLowerCase()) ||
+    item.sku.toLowerCase().includes(restockSearchTerm.toLowerCase())
+  );
 
   const toggleDescription = (id: string) => {
       const newSet = new Set(expandedItems);
@@ -112,9 +121,17 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                         className="gap-1"
                       >
                         <RotateCcw className="h-4 w-4" />
-                        Restock Existing
+                        Add Stock
                       </Button>
-                      <Button variant="outline" onClick={() => { setIsAdding(false); setError(null); }}>
+                      <Button variant="outline" onClick={() => {
+                        setIsAdding(false);
+                        setError(null);
+                        setRestockSearchTerm("");
+                        setSelectedProduct(null);
+                        setSelectedProductId("");
+                        setDropdownOpen(false);
+                        setAddMode("new");
+                      }}>
                         Cancel
                       </Button>
                     </div>
@@ -226,44 +243,101 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
             {isAdding && addMode === "restock" && (
                           <Card>
                             <CardHeader>
-                              <CardTitle>Restock Existing Product</CardTitle>
+                              <CardTitle>Add Stock to Existing Product</CardTitle>
                             </CardHeader>
                             <CardContent>
                               <form
                                 action={async (formData) => {
                                   await restockProduct(formData);
+                                  setRestockSearchTerm("");
+                                  setSelectedProduct(null);
+                                  setSelectedProductId("");
+                                  setDropdownOpen(false);
                                   setIsAdding(false);
                                   setAddMode("new");
                                 }}
                     className="grid gap-4"
                   >
-                    <div className="space-y-2">
-                      <Label htmlFor="product-select">Select Product</Label>
-                      <select id="product-select" name="id" required className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                        <option value="">-- Choose a product to restock --</option>
-                        {inventory.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name} (SKU: {item.sku}) - Current Qty: {item.quantity}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="space-y-2 relative">
+                      <Label htmlFor="product-search-input">Search & Select Product</Label>
+                      <div className="relative">
+                        <Input
+                          id="product-search-input"
+                          placeholder="Type product name or SKU..."
+                          value={restockSearchTerm}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setRestockSearchTerm(val);
+                            setDropdownOpen(true);
+                            if (!val) {
+                              setSelectedProductId("");
+                              setSelectedProduct(null);
+                            }
+                          }}
+                          onFocus={() => {
+                            setDropdownOpen(true);
+                            setRestockSearchTerm("");
+                            setSelectedProductId("");
+                            setSelectedProduct(null);
+                          }}
+                          onBlur={() => {
+                            // Delay closing to allow clicking options to register first
+                            setTimeout(() => setDropdownOpen(false), 200);
+                          }}
+                          required={!selectedProductId}
+                          autoComplete="off"
+                        />
+                        {/* Hidden input to pass product ID in form submit */}
+                        <input type="hidden" name="id" value={selectedProductId} required />
+
+                        {dropdownOpen && filteredRestockInventory.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none">
+                            <ul className="p-1">
+                              {filteredRestockInventory.map((item) => (
+                                <li
+                                  key={item.id}
+                                  onClick={() => {
+                                    setSelectedProductId(item.id);
+                                    setSelectedProduct(item);
+                                    setRestockSearchTerm(`${item.name} (SKU: ${item.sku})`);
+                                    setDropdownOpen(false);
+                                  }}
+                                  className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                                >
+                                  <div>
+                                    <div className="font-medium">{item.name}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                      SKU: {item.sku} | Qty: {item.quantity} | Price: ₵{item.price}
+                                    </div>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                      {selectedProduct && (
+                        <p className="text-xs text-lime-600 dark:text-lime-400 font-medium mt-1">
+                          Selected: {selectedProduct.name}
+                        </p>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Name</Label>
-                        <Input id="name" name="name" disabled className="bg-muted" />
+                        <Input id="name" name="name" value={selectedProduct?.name || ""} disabled className="bg-muted" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="sku">SKU</Label>
-                        <Input id="sku" name="sku" disabled className="bg-muted" />
+                        <Input id="sku" name="sku" value={selectedProduct?.sku || ""} disabled className="bg-muted" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="price">Price</Label>
-                        <Input id="price" name="price" type="number" step="0.01" disabled className="bg-muted" />
+                        <Input id="price" name="price" type="number" step="0.01" value={selectedProduct?.price || ""} disabled className="bg-muted" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="currentQuantity">Current Quantity</Label>
-                        <Input id="currentQuantity" name="currentQuantity" type="number" disabled className="bg-muted" />
+                        <Input id="currentQuantity" name="currentQuantity" type="number" value={selectedProduct?.quantity || ""} disabled className="bg-muted" />
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -273,11 +347,19 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="description">Description</Label>
-                      <Input id="description" name="description" disabled className="bg-muted" />
+                      <Input id="description" name="description" value={selectedProduct?.description || ""} disabled className="bg-muted" />
                     </div>
                     <div className="flex gap-2">
-                      <Button type="submit">Restock Product</Button>
-                      <Button type="button" variant="outline" onClick={() => { setAddMode("new"); setIsAdding(false); setError(null); }}>
+                      <Button type="submit">Add Stock</Button>
+                      <Button type="button" variant="outline" onClick={() => {
+                        setRestockSearchTerm("");
+                        setSelectedProduct(null);
+                        setSelectedProductId("");
+                        setDropdownOpen(false);
+                        setAddMode("new");
+                        setIsAdding(false);
+                        setError(null);
+                      }}>
                         Cancel
                       </Button>
                     </div>
