@@ -264,7 +264,8 @@ export async function recordSale(
   }
 
   const totalPrice = price * quantity;
-  const paid = amountPaid ?? totalPrice; // Default to full payment if not specified
+  const rawPaid = amountPaid ?? totalPrice; // Default to full payment if not specified
+  const paid = Math.min(rawPaid, totalPrice);
   const status = paid >= totalPrice ? 'paid' : 'pending';
 
   // 1. Record the sale
@@ -302,7 +303,7 @@ export async function recordSale(
     customerName,
     customerPhone,
     profile?.full_name || "Unknown",
-    paid,
+    rawPaid,
     status
   );
 
@@ -629,23 +630,27 @@ export async function recordMultipleSale(data: {
   // 1. Create individual sale records for each item (not aggregated)
   const salesToReturn = [];
   const firstSale = { id: "", receipt_number: "", receipt_data: null };
+  let remainingPayment = Math.min(data.amountPaid, totalPrice);
 
   for (let index = 0; index < data.items.length; index++) {
     const item = data.items[index];
+    const itemTotalPrice = item.price * item.quantity;
 
-    // For credit sales, distribute amount_paid across items (proportional)
-    // For first item: put the actual amount_paid; for others: 0
-    const itemAmountPaid = index === 0 ? data.amountPaid : 0;
+    // Distribute remainingPayment sequentially (waterfall) across items
+    const itemAmountPaid = Math.min(remainingPayment, itemTotalPrice);
+    remainingPayment = Math.max(0, remainingPayment - itemAmountPaid);
+
+    const itemStatus = itemAmountPaid >= itemTotalPrice ? 'paid' : 'pending';
 
     const { data: sale, error: saleError } = await supabase.from("sales").insert({
       product_id: item.productId,
       product_name: item.productName,
       quantity: item.quantity,
-      total_price: item.price * item.quantity,  // Price for THIS item only
+      total_price: itemTotalPrice,  // Price for THIS item only
       salesperson_id: user.id,
       customer_id: customerId,  // Set customer_id for credit sales
-      amount_paid: itemAmountPaid,  // Record the payment on first item
-      status: status
+      amount_paid: itemAmountPaid,
+      status: itemStatus
     }).select().single();
 
     if (saleError) {
@@ -659,13 +664,20 @@ export async function recordMultipleSale(data: {
     }
   }
 
-  // 2. Record payment in payments table if amount was paid
-  if (data.amountPaid > 0 && firstSale.id) {
-      await supabase.from("payments").insert({
-          sale_id: firstSale.id,
-          amount: data.amountPaid,
-          recorded_by: user.id
+  // 2. Record payment in payments table for each sale item that has non-zero amount_paid
+  for (const sale of salesToReturn) {
+    if (sale.amount_paid > 0) {
+      const { error: paymentError } = await supabase.from("payments").insert({
+        sale_id: sale.id,
+        amount: sale.amount_paid,
+        recorded_by: user.id
       });
+
+      if (paymentError) {
+        console.error("Payment insert error:", paymentError);
+        throw new Error(`Failed to record payment: ${paymentError.message}`);
+      }
+    }
   }
 
   // 3. Build and store receipt with all items
