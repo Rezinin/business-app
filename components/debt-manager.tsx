@@ -47,6 +47,7 @@ interface DebtSale {
     created_at: string
     total_price: number
     amount_paid: number
+    quantity: number
     inventory: {
         name: string
     }
@@ -125,7 +126,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
         const { data, error } = await supabase
             .from("sales")
             .select(`
-                id, created_at, total_price, amount_paid, status,
+                id, created_at, total_price, amount_paid, status, quantity,
                 inventory(name)
             `)
             .eq("customer_id", customerId)
@@ -177,13 +178,34 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
 
     const handlePayment = async () => {
         if (!paymentAmount) return
+        const amount = parseFloat(paymentAmount)
+        if (isNaN(amount) || amount <= 0) {
+            alert("Please enter a valid positive payment amount.")
+            return
+        }
+
+        if (isCustomerPayment && selectedCustomer) {
+            if (amount > totalDebt) {
+                alert(`Payment amount cannot exceed the total outstanding debt of ₵${totalDebt.toFixed(2)}.`)
+                return
+            }
+        } else if (selectedSaleId) {
+            const selectedSale = debts.find(d => d.id === selectedSaleId)
+            if (selectedSale) {
+                const saleOwed = selectedSale.total_price - (selectedSale.amount_paid || 0)
+                if (amount > saleOwed) {
+                    alert(`Payment amount cannot exceed the item's outstanding debt of ₵${saleOwed.toFixed(2)}.`)
+                    return
+                }
+            }
+        }
         
         setLoading(true)
         try {
             if (isCustomerPayment && selectedCustomer) {
-                await recordCustomerPayment(selectedCustomer.id, parseFloat(paymentAmount))
+                await recordCustomerPayment(selectedCustomer.id, amount)
             } else if (selectedSaleId) {
-                await recordPayment(selectedSaleId, parseFloat(paymentAmount))
+                await recordPayment(selectedSaleId, amount)
             }
             
             setPaymentDialogOpen(false)
@@ -279,10 +301,11 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                 onClick={() => {
                                     setIsCustomerPayment(true)
                                     setSelectedSaleId(null)
+                                    setPaymentAmount(totalDebt.toFixed(2))
                                     setPaymentDialogOpen(true)
                                 }}
                             >
-                                Pay Total Debt (₵{totalDebt.toFixed(2)})
+                                Record Customer Payment
                             </Button>
                         )}
                     </CardHeader>
@@ -296,14 +319,16 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                     <TableRow>
                                         <TableHead>Date</TableHead>
                                         <TableHead>Item</TableHead>
-                                        <TableHead>Owed</TableHead>
+                                        <TableHead className="text-right">Qty</TableHead>
+                                        <TableHead className="text-right">Price</TableHead>
+                                        <TableHead className="text-right">Owed</TableHead>
                                         <TableHead>Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {debts.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                            <TableCell colSpan={6} className="text-center text-muted-foreground">
                                                 No outstanding debts.
                                             </TableCell>
                                         </TableRow>
@@ -312,7 +337,9 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                         <TableRow key={debt.id}>
                                             <TableCell>{new Date(debt.created_at).toLocaleDateString()}</TableCell>
                                             <TableCell>{debt.inventory?.name}</TableCell>
-                                            <TableCell className="text-red-500 font-bold">
+                                            <TableCell className="text-right">{debt.quantity}</TableCell>
+                                            <TableCell className="text-right">₵{(debt.total_price / debt.quantity).toFixed(2)}</TableCell>
+                                            <TableCell className="text-right text-red-500 font-bold">
                                                 ₵{(debt.total_price - (debt.amount_paid || 0)).toFixed(2)}
                                             </TableCell>
                                             <TableCell className="flex gap-2 items-center">
@@ -322,6 +349,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                                     onClick={() => {
                                                         setIsCustomerPayment(false)
                                                         setSelectedSaleId(debt.id)
+                                                        setPaymentAmount((debt.total_price - (debt.amount_paid || 0)).toFixed(2))
                                                         setPaymentDialogOpen(true)
                                                     }}
                                                 >
@@ -413,7 +441,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                 />
                                 {isCustomerPayment && (
                                     <p className="text-xs text-muted-foreground">
-                                        This payment will be applied to the oldest debts first.
+                                        Enter any amount. The payment will automatically distribute from the oldest outstanding debt to the newest. Any remaining unpaid balance will stay on the newer items.
                                     </p>
                                 )}
                             </div>

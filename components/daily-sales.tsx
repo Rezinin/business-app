@@ -32,14 +32,53 @@ interface Sale {
     created_at: string;
     salesperson_id: string;
     product_name?: string;
-    inventory: {
+    customers?: {
+        id: string;
+        name: string;
+    };
+    inventory?: {
         name: string;
         sku: string;
     };
 }
 
+interface Payment {
+  id: string;
+  created_at: string;
+  amount: number;
+  recorded_by: string;
+  sales: {
+    id: string;
+    created_at: string;
+    product_name?: string;
+    customer_id?: string;
+    customers?: {
+      id: string;
+      name: string;
+    };
+    inventory?: {
+      name: string;
+    };
+  };
+}
+
+interface UnifiedRow {
+  id: string;
+  key: string;
+  time: string;
+  type: 'sale' | 'payment';
+  productName: string;
+  quantity: number | string;
+  totalPrice: number | null;
+  amountPaidToday: number;
+  amountPaidTotal?: number;
+  salespersonId: string;
+  customerName?: string;
+}
+
 export function DailySales({ userId, canManageSales = false }: DailySalesProps) {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [salespersonMap, setSalespersonMap] = useState<Record<string, string>>({});
@@ -56,14 +95,14 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
   }, []);
 
   useEffect(() => {
-    const fetchSales = async () => {
+    const fetchDailyData = async () => {
       setLoading(true);
       
-      // Parse date using UTC to avoid timezone issues
       const parts = selectedDate.split('-');
       
       if (parts.length !== 3) {
         setSales([]);
+        setPayments([]);
         setLoading(false);
         return;
       }
@@ -72,6 +111,7 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
       
       if (isNaN(year) || isNaN(month) || isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) {
         setSales([]);
+        setPayments([]);
         setLoading(false);
         return;
       }
@@ -79,7 +119,8 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
       const startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
       const endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-      let query = supabase
+      // 1. Fetch Sales created today
+      let salesQuery = supabase
         .from("sales")
         .select(`
           id,
@@ -89,6 +130,10 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
           created_at,
           salesperson_id,
           product_name,
+          customers (
+            id,
+            name
+          ),
           inventory (
             name,
             sku
@@ -99,94 +144,182 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
         .order("created_at", { ascending: false });
 
       if (userId) {
-        query = query.eq("salesperson_id", userId);
+        salesQuery = salesQuery.eq("salesperson_id", userId);
       }
 
-      const { data, error } = await query;
+      // 2. Fetch Payments recorded today
+      let paymentsQuery = supabase
+        .from("payments")
+        .select(`
+          id,
+          created_at,
+          amount,
+          recorded_by,
+          sales!inner (
+            id,
+            created_at,
+            product_name,
+            customer_id,
+            customers (
+              id,
+              name
+            ),
+            inventory (
+              name
+            )
+          )
+        `)
+        .gte("created_at", startDate.toISOString())
+        .lte("created_at", endDate.toISOString())
+        .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching sales:", error);
-      } else {
-        // @ts-ignore
-        setSales(data || []);
-        
-        // Fetch salesperson names if needed
-        if (!userId && data && data.length > 0) {
-            const userIds = Array.from(new Set(data.map((s: any) => s.salesperson_id).filter(Boolean)));
-            if (userIds.length > 0) {
-                const { data: profiles } = await supabase
+      if (userId) {
+        paymentsQuery = paymentsQuery.eq("recorded_by", userId);
+      }
+
+      const [salesRes, paymentsRes] = await Promise.all([salesQuery, paymentsQuery]);
+
+      if (salesRes.error) {
+        console.error("Error fetching sales:", salesRes.error);
+      }
+      if (paymentsRes.error) {
+        console.error("Error fetching payments:", paymentsRes.error);
+      }
+
+      const salesData = salesRes.data || [];
+      const paymentsData = (paymentsRes.data as unknown as Payment[]) || [];
+
+      // @ts-ignore
+      setSales(salesData);
+      setPayments(paymentsData);
+      
+      // Fetch salesperson names if needed
+      if (!userId && (salesData.length > 0 || paymentsData.length > 0)) {
+          const salesUserIds = salesData.map((s: any) => s.salesperson_id);
+          const paymentsUserIds = paymentsData.map((p: any) => p.recorded_by);
+          const userIds = Array.from(new Set([...salesUserIds, ...paymentsUserIds].filter(Boolean)));
+          
+          if (userIds.length > 0) {
+              const { data: profiles } = await supabase
                 .from("profiles")
                 .select("id, full_name, role")
                 .in("id", userIds);
-                
-                const map: Record<string, string> = {};
-                
-                if (profiles) {
-                    profiles.forEach((p: any) => {
-                        const isManager = p.role === 'manager' || !p.role;
-                        let displayName = p.full_name || (isManager ? "Manager" : "Unknown");
-                        if (isManager && p.full_name) {
-                            displayName = `${p.full_name} (Manager)`;
-                        }
-                        map[p.id] = displayName;
-                    });
-                }
+              
+              const map: Record<string, string> = {};
+              
+              if (profiles) {
+                  profiles.forEach((p: any) => {
+                      const isManager = p.role === 'manager' || !p.role;
+                      let displayName = p.full_name || (isManager ? "Manager" : "Unknown");
+                      if (isManager && p.full_name) {
+                          displayName = `${p.full_name} (Manager)`;
+                      }
+                      map[p.id] = displayName;
+                  });
+              }
 
-                // Fill in missing profiles as "Manager" (likely the admin account)
-                userIds.forEach((id: unknown) => {
-                    const userIdStr = id as string;
-                    if (!map[userIdStr]) {
-                        map[userIdStr] = "Manager";
-                    }
-                });
+              userIds.forEach((id: unknown) => {
+                  const idStr = id as string;
+                  if (!map[idStr]) {
+                      map[idStr] = "Manager";
+                  }
+              });
 
-                setSalespersonMap(map);
-            }
-        }
+              setSalespersonMap(map);
+          }
       }
       setLoading(false);
     };
 
-    fetchSales();
+    fetchDailyData();
 
-    // Realtime subscription - listen for changes to sales table
+    // Realtime subscription - listen for changes to sales and payments tables
     const channel = supabase
-        .channel(`sales_${selectedDate}_${userId || 'all'}`)
+        .channel(`daily_sales_ledger_${selectedDate}_${userId || 'all'}`)
         .on(
           'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'sales',
-            filter: userId ? `salesperson_id=eq.${userId}` : undefined
-          },
-          (payload) => {
-            console.log("Sales table change detected:", payload);
-            // Refetch sales when a change occurs
-            fetchSales();
+          { event: '*', schema: 'public', table: 'sales' },
+          () => {
+            fetchDailyData();
           }
         )
-        .subscribe((status, error) => {
-          console.log("Realtime subscription status:", status);
-          if (error) {
-          // Silently handle realtime connection errors - app still works fine without real-time updates
-          console.warn("Realtime connection error (non-critical):", error?.message);
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'payments' },
+          () => {
+            fetchDailyData();
           }
-        });
+        )
+        .subscribe();
     
     return () => {
       channel.unsubscribe();
     };
   }, [selectedDate, userId]);
 
-  const totalSales = sales.reduce((sum, sale) => sum + (sale.amount_paid || 0), 0);
+  // Build unifiedRows
+  const parts = selectedDate.split('-');
+  const [year, month, day] = parts.map(Number);
+  const startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+
+  const unifiedRows: UnifiedRow[] = [];
+
+  // Add Sales created today
+  sales.forEach((sale) => {
+    // Sum payments recorded today for this specific sale
+    const todayPaymentsForSale = payments.filter((p) => p.sales?.id === sale.id);
+    const paidToday = todayPaymentsForSale.reduce((sum, p) => sum + p.amount, 0);
+
+    unifiedRows.push({
+      id: sale.id,
+      key: `sale_${sale.id}`,
+      time: sale.created_at,
+      type: 'sale',
+      productName: sale.inventory?.name || sale.product_name || "Unknown Product",
+      quantity: sale.quantity,
+      totalPrice: sale.total_price,
+      amountPaidToday: paidToday,
+      amountPaidTotal: sale.amount_paid,
+      salespersonId: sale.salesperson_id,
+      customerName: sale.customers?.name
+    });
+  });
+
+  // Add payments recorded today that are for sales created BEFORE today (later debt payments)
+  payments.forEach((payment) => {
+    const saleCreatedAt = payment.sales?.created_at;
+    if (saleCreatedAt) {
+      const saleCreatedDate = new Date(saleCreatedAt);
+      if (saleCreatedDate < startDate) {
+        unifiedRows.push({
+          id: payment.id,
+          key: `payment_${payment.id}`,
+          time: payment.created_at,
+          type: 'payment',
+          productName: `${payment.sales?.inventory?.name || payment.sales?.product_name || "Unknown"} (Debt Payment)`,
+          quantity: "-",
+          totalPrice: null,
+          amountPaidToday: payment.amount,
+          salespersonId: payment.recorded_by,
+          customerName: payment.sales?.customers?.name
+        });
+      }
+    }
+  });
+
+  // Sort unifiedRows chronologically (newest first)
+  unifiedRows.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+  // Calculate stats
+  const totalSalesRevenue = sales.reduce((sum, sale) => sum + sale.total_price, 0);
+  const totalCashCollected = payments.reduce((sum, p) => sum + p.amount, 0);
 
   return (
-    <Card>
+    <Card suppressHydrationWarning>
       <CardHeader>
-        <CardTitle className="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-4">
-                <span>Sales Report</span>
+                <CardTitle>Sales & Cash Report</CardTitle>
                 <Input 
                     type="date" 
                     value={selectedDate}
@@ -194,13 +327,36 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
                     className="w-auto"
                 />
             </div>
-            <span className="text-2xl font-bold text-green-600">
-                ₵{totalSales.toFixed(2)} <span className="text-sm font-normal text-gray-700 dark:text-gray-400">collected</span>
-            </span>
-        </CardTitle>
+        </div>
         <p className="text-sm text-gray-700 dark:text-gray-300">
-            Showing sales records for {new Date(selectedDate).toLocaleDateString()}.
+            Showing all activity for {new Date(selectedDate).toLocaleDateString()}.
         </p>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          <div className="p-4 border rounded-lg bg-gray-50/50 dark:bg-slate-900/50 flex flex-col justify-center border-gray-100 dark:border-slate-800">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Sales Revenue (Today)
+            </span>
+            <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+              ₵{totalSalesRevenue.toFixed(2)}
+            </span>
+            <span className="text-xs text-gray-500 mt-1">
+              Total value of items sold today
+            </span>
+          </div>
+          <div className="p-4 border rounded-lg bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-100 dark:border-emerald-950 flex flex-col justify-center">
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+              Cash Collected (Today)
+            </span>
+            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+              ₵{totalCashCollected.toFixed(2)}
+            </span>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+              Actual money received today (matches drawer cash)
+            </span>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -208,52 +364,72 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
           <TableHeader>
             <TableRow>
               <TableHead>Time</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead>Quantity</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Paid</TableHead>
+              <TableHead>Activity</TableHead>
+              <TableHead>Product / Details</TableHead>
+              <TableHead>Customer</TableHead>
+              <TableHead className="text-right">Qty</TableHead>
+              <TableHead className="text-right">Total Price</TableHead>
+              <TableHead className="text-right">Paid Today</TableHead>
               <TableHead>Salesperson</TableHead>
-                {canManageSales && <TableHead>Actions</TableHead>}
+              {canManageSales && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
                 <TableRow>
-                  <TableCell colSpan={canManageSales ? 7 : 6} className="text-center py-8">
-                        Loading sales data...
+                  <TableCell colSpan={canManageSales ? 9 : 8} className="text-center py-8">
+                        Loading daily ledger data...
                     </TableCell>
                 </TableRow>
-            ) : sales.length === 0 ? (
+            ) : unifiedRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={canManageSales ? 7 : 6} className="text-center text-gray-700 dark:text-gray-300 py-8">
-                        No sales recorded for this date.
+                  <TableCell colSpan={canManageSales ? 9 : 8} className="text-center text-gray-700 dark:text-gray-300 py-8">
+                        No activity recorded for this date.
                     </TableCell>
                 </TableRow>
             ) : (
-                sales.map((sale) => (
-              <TableRow key={sale.id}>
+                unifiedRows.map((row) => (
+              <TableRow key={row.key}>
                 <TableCell>
-                  {new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(row.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </TableCell>
                 <TableCell>
-                    <div className="font-medium">
-                        {sale.inventory?.name || (sale.product_name ? `${sale.product_name} (deleted)` : "Unknown Product")}
+                  {row.type === 'sale' ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                      Sale
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                      Payment
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell>
+                    <div className={row.type === 'payment' ? "font-medium text-blue-600 dark:text-blue-400" : "font-medium"}>
+                        {row.productName}
                     </div>
-                    <div className="text-xs text-gray-700 dark:text-gray-400">{sale.inventory?.sku}</div>
                 </TableCell>
-                <TableCell>{sale.quantity}</TableCell>
-                <TableCell>₵{sale.total_price.toFixed(2)}</TableCell>
-                <TableCell className={sale.amount_paid < sale.total_price ? "text-red-500 font-bold" : "text-green-600"}>
-                    ₵{sale.amount_paid?.toFixed(2)}
+                <TableCell>{row.customerName || "Walk-in"}</TableCell>
+                <TableCell className="text-right">{row.quantity}</TableCell>
+                <TableCell className="text-right">
+                  {row.totalPrice !== null ? `₵${row.totalPrice.toFixed(2)}` : "-"}
+                  {row.type === 'sale' && row.totalPrice !== null && (row.amountPaidTotal || 0) < row.totalPrice && (
+                    <div className="text-xs text-red-500 font-medium">
+                      Owed: ₵{(row.totalPrice - (row.amountPaidTotal || 0)).toFixed(2)}
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="text-right text-green-600 font-semibold">
+                    ₵{row.amountPaidToday.toFixed(2)}
                 </TableCell>
                 <TableCell>
-                    {sale.salesperson_id === currentUserId 
+                    {row.salespersonId === currentUserId 
                         ? "You" 
-                        : (salespersonMap[sale.salesperson_id] || "Unknown")}
+                        : (salespersonMap[row.salespersonId] || "Unknown")}
                 </TableCell>
                 {canManageSales && (
                     <TableCell>
-                        <SaleActions saleId={sale.id} />
+                        {row.type === 'sale' ? <SaleActions saleId={row.id} /> : "-"}
                     </TableCell>
                 )}
               </TableRow>

@@ -346,6 +346,11 @@ export async function recordPayment(saleId: string, amount: number) {
     const { data: sale } = await supabase.from("sales").select("*").eq("id", saleId).single();
     if (!sale) throw new Error("Sale not found");
 
+    const amountOwed = sale.total_price - (sale.amount_paid || 0);
+    if (amount > amountOwed) {
+        throw new Error(`Payment amount (₵${amount.toFixed(2)}) cannot exceed outstanding debt (₵${amountOwed.toFixed(2)})`);
+    }
+
     const newAmountPaid = (sale.amount_paid || 0) + amount;
     const newStatus = newAmountPaid >= sale.total_price ? 'paid' : 'pending';
 
@@ -373,19 +378,29 @@ export async function recordCustomerPayment(customerId: string, amount: number) 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    // Fetch all pending sales for this customer, oldest first
-    const { data: sales } = await supabase
+    // Fetch all sales for this customer, oldest first
+    const { data: sales, error: fetchError } = await supabase
         .from("sales")
         .select("*")
         .eq("customer_id", customerId)
-        .eq("status", "pending")
         .order("created_at", { ascending: true });
 
-    if (!sales || sales.length === 0) throw new Error("No pending debt found for this customer");
+    if (fetchError) throw new Error(`Failed to fetch sales: ${fetchError.message}`);
+    if (!sales || sales.length === 0) throw new Error("No sales found for this customer");
+
+    // Filter to only sales with outstanding debt (robust against status mismatches)
+    const outstandingSales = sales.filter((sale) => (sale.amount_paid || 0) < sale.total_price);
+    if (outstandingSales.length === 0) throw new Error("No pending debt found for this customer");
+
+    // Validate that total payment doesn't exceed total debt
+    const totalOutstanding = outstandingSales.reduce((sum, sale) => sum + (sale.total_price - (sale.amount_paid || 0)), 0);
+    if (amount > totalOutstanding) {
+        throw new Error(`Payment amount (₵${amount.toFixed(2)}) cannot exceed total outstanding debt (₵${totalOutstanding.toFixed(2)})`);
+    }
 
     let remainingPayment = amount;
 
-    for (const sale of sales) {
+    for (const sale of outstandingSales) {
         if (remainingPayment <= 0) break;
 
         const amountOwed = sale.total_price - (sale.amount_paid || 0);
