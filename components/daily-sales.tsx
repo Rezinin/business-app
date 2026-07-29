@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -310,9 +311,31 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
   // Sort unifiedRows chronologically (newest first)
   unifiedRows.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
-  // Calculate stats
-  const totalSalesRevenue = sales.reduce((sum, sale) => sum + sale.total_price, 0);
+  // Total value of items sold today (regardless of payment)
+  const totalSalesRevenue = sales.reduce((sum, sale) => sum + (sale.total_price || 0), 0);
+
+  // Total cash collected today (all payments recorded today)
   const totalCashCollected = payments.reduce((sum, p) => sum + p.amount, 0);
+
+  // Total from sales created today that were actually paid today (sum of payments tied to today's sales)
+  const totalSalesCollected = sales.reduce((sum, sale) => {
+    const paidTodayForSale = payments
+      .filter((p) => p.sales?.id === sale.id)
+      .reduce((s, p) => s + p.amount, 0);
+    return sum + paidTodayForSale;
+  }, 0);
+
+  // Payments made today that are for sales created before today (debt payments)
+  const paymentsForOlderSales = payments.reduce((sum, p) => {
+    const saleCreatedAt = p.sales?.created_at;
+    if (!saleCreatedAt) return sum;
+    const saleCreatedDate = new Date(saleCreatedAt);
+    if (saleCreatedDate < startDate) return sum + p.amount;
+    return sum;
+  }, 0);
+
+  // Combined total the salesperson has for the day: money moved today from immediate sales + debt payments
+  const combinedTotal = totalSalesCollected + paymentsForOlderSales;
 
   return (
     <Card suppressHydrationWarning>
@@ -333,7 +356,7 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
         </p>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
           <div className="p-4 border rounded-lg bg-gray-50/50 dark:bg-slate-900/50 flex flex-col justify-center border-gray-100 dark:border-slate-800">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Sales Revenue (Today)
@@ -356,6 +379,38 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
               Actual money received today (matches drawer cash)
             </span>
           </div>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <div className="p-4 border rounded-lg bg-lime-50/30 dark:bg-lime-950/10 border-lime-100 dark:border-lime-800 cursor-pointer flex flex-col justify-center">
+                <span className="text-xs font-semibold text-lime-700 dark:text-lime-300 uppercase tracking-wider">
+                  Today's Total (Sales + Payments)
+                </span>
+                <span className="text-2xl font-bold text-lime-700 dark:text-lime-300 mt-1">
+                  ₵{combinedTotal.toFixed(2)}
+                </span>
+                <span className="text-xs text-lime-700 dark:text-lime-300 mt-1">
+                  Hover or click for breakdown
+                </span>
+              </div>
+            </PopoverTrigger>
+            <PopoverContent>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Sales Collected (today)</div>
+                  <div className="font-semibold">₵{totalSalesCollected.toFixed(2)}</div>
+                </div>
+                <div className="flex justify-between">
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Debt Payments (today)</div>
+                  <div className="font-semibold">₵{paymentsForOlderSales.toFixed(2)}</div>
+                </div>
+                <div className="border-t pt-2 flex justify-between">
+                  <div className="text-sm font-medium">Combined</div>
+                  <div className="font-bold">₵{combinedTotal.toFixed(2)}</div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </CardHeader>
       <CardContent>

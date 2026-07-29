@@ -257,7 +257,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                     <div 
                                         key={customer.id}
                                         className={`p-3 border rounded cursor-pointer hover:bg-accent ${selectedCustomer?.id === customer.id ? 'bg-accent' : ''}`}
-                                        onClick={() => setSelectedCustomer(customer)}
+                                        onClick={() => setSelectedCustomer((prev) => prev?.id === customer.id ? null : customer)}
                                     >
                                         <div className="font-medium">{customer.name}</div>
                                         <div className="text-sm text-gray-700 dark:text-gray-400">{customer.phone}</div>
