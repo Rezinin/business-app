@@ -355,42 +355,19 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
             Showing all activity for {new Date(selectedDate).toLocaleDateString()}.
         </p>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-          <div className="p-4 border rounded-lg bg-gray-50/50 dark:bg-slate-900/50 flex flex-col justify-center border-gray-100 dark:border-slate-800">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Sales Revenue (Today)
-            </span>
-            <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-              ₵{totalSalesRevenue.toFixed(2)}
-            </span>
-            <span className="text-xs text-gray-500 mt-1">
-              Total value of items sold today
-            </span>
-          </div>
-          <div className="p-4 border rounded-lg bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-100 dark:border-emerald-950 flex flex-col justify-center">
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-              Cash Collected (Today)
-            </span>
-            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-              ₵{totalCashCollected.toFixed(2)}
-            </span>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-              Actual money received today (matches drawer cash)
-            </span>
-          </div>
-
+        {/* Stats Grid - single combined card only; details moved into popover */}
+        <div className="grid grid-cols-1 gap-4 mt-4">
           <Popover>
             <PopoverTrigger asChild>
               <div className="p-4 border rounded-lg bg-lime-50/30 dark:bg-lime-950/10 border-lime-100 dark:border-lime-800 cursor-pointer flex flex-col justify-center">
                 <span className="text-xs font-semibold text-lime-700 dark:text-lime-300 uppercase tracking-wider">
-                  Today's Total (Sales + Payments)
+                  Today's Total (Sales Collected + Debt Payments)
                 </span>
                 <span className="text-2xl font-bold text-lime-700 dark:text-lime-300 mt-1">
                   ₵{combinedTotal.toFixed(2)}
                 </span>
                 <span className="text-xs text-lime-700 dark:text-lime-300 mt-1">
-                  Hover or click for breakdown
+                  Click for breakdown and revenue details
                 </span>
               </div>
             </PopoverTrigger>
@@ -403,6 +380,11 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
                 <div className="flex justify-between">
                   <div className="text-sm text-gray-600 dark:text-gray-300">Debt Payments (today)</div>
                   <div className="font-semibold">₵{paymentsForOlderSales.toFixed(2)}</div>
+                </div>
+                <div className="border-t pt-2">
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Total Sales Revenue (items sold today)</div>
+                  <div className="font-semibold mt-1">₵{totalSalesRevenue.toFixed(2)}</div>
+                  <div className="text-xs text-gray-500 mt-1">(Includes items sold on credit — not necessarily received today)</div>
                 </div>
                 <div className="border-t pt-2 flex justify-between">
                   <div className="text-sm font-medium">Combined</div>
