@@ -276,9 +276,6 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                           }}
                           onFocus={() => {
                             setDropdownOpen(true);
-                            setRestockSearchTerm("");
-                            setSelectedProductId("");
-                            setSelectedProduct(null);
                           }}
                           onBlur={() => {
                             // Delay closing to allow clicking options to register first
@@ -296,7 +293,8 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                               {filteredRestockInventory.map((item) => (
                                 <li
                                   key={item.id}
-                                  onClick={() => {
+                                  onMouseDown={(e) => {
+                                    e.preventDefault(); // Prevent input blur before selection registers
                                     setSelectedProductId(item.id);
                                     setSelectedProduct(item);
                                     setRestockSearchTerm(`${item.name} (SKU: ${item.sku})`);
