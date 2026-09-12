@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import {
   Card,
@@ -33,7 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { recordPayment, recordCustomerPayment, deleteSale } from "@/app/actions"
-import { Trash2, MoreHorizontal } from "lucide-react"
+import { Trash2, MoreHorizontal, Loader2 } from "lucide-react"
 
 interface Customer {
     id: string
@@ -77,6 +77,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
     const [isCustomerPayment, setIsCustomerPayment] = useState(false)
 
     const supabase = createClient()
+    const submittingRef = useRef(false)
 
     const fetchCustomersWithDebt = async () => {
         // Fetch sales that have a customer and then roll them up by customer so
@@ -199,6 +200,9 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                 }
             }
         }
+
+        if (submittingRef.current) return // Prevent double submission
+        submittingRef.current = true
         
         setLoading(true)
         try {
@@ -220,6 +224,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
             alert(`Failed to record payment: ${e.message || "Unknown error"}`)
         } finally {
             setLoading(false)
+            submittingRef.current = false
         }
     }
 
@@ -448,7 +453,12 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                         </div>
                         <DialogFooter>
                             <Button onClick={handlePayment} disabled={loading}>
-                                {loading ? "Recording..." : "Confirm Payment"}
+                                {loading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Recording...
+                                    </>
+                                ) : "Confirm Payment"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

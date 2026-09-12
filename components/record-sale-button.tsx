@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { recordSale, createCustomer } from "@/app/actions"
 import { Input } from "@/components/ui/input"
@@ -25,6 +25,8 @@ import {
 import { createClient } from "@/lib/supabase/client"
 import { POSReceipt } from "@/components/pos-receipt"
 import type { ReceiptDataPayload } from "@/lib/receipt-utils"
+import { Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface Product {
     id: string
@@ -58,6 +60,8 @@ export function RecordSaleButton({ product }: { product: Product }) {
     const [allowNegativeInventory, setAllowNegativeInventory] = useState(false)
 
     const supabase = createClient()
+    const submittingRef = useRef(false)
+    const router = useRouter()
 
     useEffect(() => {
         if (open && isCredit) {
@@ -115,6 +119,8 @@ export function RecordSaleButton({ product }: { product: Product }) {
             alert("Not enough stock");
             return;
         }
+        if (submittingRef.current) return; // Prevent double submission
+        submittingRef.current = true;
 
         setLoading(true)
         try {
@@ -125,6 +131,7 @@ export function RecordSaleButton({ product }: { product: Product }) {
                     if (!newCustomerName) {
                         alert("Please enter customer name")
                         setLoading(false)
+                        submittingRef.current = false
                         return
                     }
                     const newCustomer = await createCustomer(newCustomerName, newCustomerPhone)
@@ -132,6 +139,7 @@ export function RecordSaleButton({ product }: { product: Product }) {
                 } else if (!customerId) {
                     alert("Please select a customer")
                     setLoading(false)
+                    submittingRef.current = false
                     return
                 }
             }
@@ -147,6 +155,7 @@ export function RecordSaleButton({ product }: { product: Product }) {
             }
             
             // Close sale dialog and reset form
+            router.refresh(); // Subtly refresh page data
             setOpen(false)
             setQuantity(1)
             setIsCredit(false)
@@ -154,9 +163,11 @@ export function RecordSaleButton({ product }: { product: Product }) {
             setSelectedCustomerId("")
             setIsNewCustomer(false)
             setNewCustomerName("")
+            submittingRef.current = false // Reset after successful completion
         } catch (e: any) {
             console.error(e);
             alert(`Failed to record sale: ${e.message || "Unknown error"}`)
+            submittingRef.current = false // Allow retry on error
         } finally {
             setLoading(false)
         }
@@ -200,7 +211,15 @@ export function RecordSaleButton({ product }: { product: Product }) {
                             <Checkbox 
                                 id="credit" 
                                 checked={isCredit} 
-                                onCheckedChange={(c) => setIsCredit(!!c)} 
+                                onCheckedChange={(c) => {
+                                    const checked = !!c
+                                    setIsCredit(checked)
+                                    if (checked) {
+                                        setAmountPaid("0")
+                                    } else {
+                                        setAmountPaid("")
+                                    }
+                                }} 
                             />
                             <div className="grid gap-1.5 leading-none">
                                 <Label htmlFor="credit">Sell on Credit / Partial Payment</Label>
@@ -264,6 +283,9 @@ export function RecordSaleButton({ product }: { product: Product }) {
                                         placeholder="0.00"
                                         className="col-span-3"
                                     />
+                                    <div className="col-span-4 text-xs text-orange-600 dark:text-orange-400 mt-[-8px] mb-2 text-right">
+                                        Caution: If this is a partial payment, please input the actual amount paid today.
+                                    </div>
                                 </div>
                             </>
                         )}
@@ -274,7 +296,12 @@ export function RecordSaleButton({ product }: { product: Product }) {
                     </div>
                     <DialogFooter>
                         <Button onClick={handleSale} disabled={loading}>
-                            {loading ? "Recording..." : "Confirm Sale"}
+                            {loading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Recording...
+                                </>
+                            ) : "Confirm Sale"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

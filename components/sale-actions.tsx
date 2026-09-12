@@ -8,22 +8,29 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { MoreHorizontal, Trash2, Loader2 } from "lucide-react";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 export function SaleActions({ saleId }: { saleId: string }) {
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
+  const router = useRouter();
 
   const handleDelete = async () => {
     if (confirm("Are you sure you want to delete this sale? This will restore the inventory.")) {
+      if (submittingRef.current) return; // Prevent double submission
+      submittingRef.current = true;
       setLoading(true);
       try {
         await deleteSale(saleId);
+        router.refresh(); // Subtly refresh page data
       } catch (error) {
         console.error(error);
         alert("Failed to delete sale");
       } finally {
         setLoading(false);
+        submittingRef.current = false;
       }
     }
   };
@@ -33,7 +40,11 @@ export function SaleActions({ saleId }: { saleId: string }) {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="h-8 w-8 p-0">
           <span className="sr-only">Open menu</span>
-          <MoreHorizontal className="h-4 w-4" />
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <MoreHorizontal className="h-4 w-4" />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -42,8 +53,17 @@ export function SaleActions({ saleId }: { saleId: string }) {
           onClick={handleDelete}
           disabled={loading}
         >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete Sale
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Deleting...
+            </>
+          ) : (
+            <>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Sale
+            </>
+          )}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -645,6 +645,7 @@ export async function recordMultipleSale(data: {
   // 1. Create individual sale records for each item (not aggregated)
   const salesToReturn = [];
   const firstSale = { id: "", receipt_number: "", receipt_data: null };
+  
   let remainingPayment = Math.min(data.amountPaid, totalPrice);
 
   for (let index = 0; index < data.items.length; index++) {

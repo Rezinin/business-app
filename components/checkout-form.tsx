@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCart, CartItem } from "@/lib/cart-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { recordMultipleSale } from "@/app/actions";
 import { POSReceipt } from "./pos-receipt";
 import { ReceiptDataPayload } from "@/lib/receipt-utils";
 import { createClient } from "@/lib/supabase/client";
+import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface Customer {
   id: string;
@@ -24,6 +26,7 @@ interface CheckoutFormProps {
 
 export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps) {
   const { items, getTotal, clearCart } = useCart();
+  const router = useRouter();
   const [status, setStatus] = useState<"paid" | "pending">("paid");
   const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
   const [otherPaymentLabel, setOtherPaymentLabel] = useState<string>("");
@@ -39,6 +42,7 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
   const [previewPrinted, setPreviewPrinted] = useState(false);
   const [salespersonName, setSalespersonName] = useState<string>("Current User");
   const supabase = createClient();
+  const submittingRef = useRef(false);
 
   const total = getTotal();
   const parsedAmountPaid = Number.isFinite(Number(amountPaid)) ? Number(amountPaid) : 0;
@@ -189,6 +193,8 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
   };
 
   const handleConfirmSale = async () => {
+    if (submittingRef.current) return; // Prevent double submission
+    submittingRef.current = true;
     setLoading(true);
     try {
       const response = await recordMultipleSale({
@@ -211,10 +217,12 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
         setSaleConfirmed(true);
         setPreviewPrinted(false);
         onCloseGuardChange?.(false);
+        router.refresh(); // Subtly refresh page data
       }
     } catch (error) {
       console.error("Confirmation error:", error);
-      alert("Error confirming sale. Please try again.");
+      alert("Error confirming sale. Please check the sales ledger before trying again to avoid duplicates.");
+      submittingRef.current = false; // Only allow retry on error
     } finally {
       setLoading(false);
     }
@@ -276,7 +284,12 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
               disabled={loading}
               className="flex-1 bg-lime-600 hover:bg-lime-700 text-white"
             >
-              {loading ? "Confirming..." : "Confirm & Record Sale"}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Confirming...
+                </>
+              ) : "Confirm & Record Sale"}
             </Button>
           </div>
         </div>
@@ -361,7 +374,17 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
       <div className="space-y-3">
         <div>
           <Label htmlFor="status">Payment Status</Label>
-          <Select value={status} onValueChange={(v) => setStatus(v as "paid" | "pending")}>
+          <Select 
+            value={status} 
+            onValueChange={(v) => {
+              setStatus(v as "paid" | "pending");
+              if (v === "pending") {
+                setAmountPaid("0");
+              } else {
+                setAmountPaid(total.toString());
+              }
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -370,8 +393,10 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
               <SelectItem value="pending">Pending (Credit Sale)</SelectItem>
             </SelectContent>
           </Select>
-            <p className="mt-1 text-xs text-muted-foreground">
-              This will automatically switch based on the amount paid.
+            <p className="mt-1 text-xs text-orange-600 dark:text-orange-400">
+              {status === "pending" 
+                ? "Amount paid set to 0. Caution: If this is a partial payment, please input the actual amount paid below." 
+                : "This will automatically switch based on the amount paid."}
             </p>
         </div>
 
@@ -420,7 +445,12 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
         disabled={loading || items.length === 0}
         className="w-full bg-lime-600 hover:bg-lime-700 text-white"
       >
-        {loading ? "Generating Preview..." : "Preview Order"}
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Generating Preview...
+          </>
+        ) : "Preview Order"}
       </Button>
     </div>
   );

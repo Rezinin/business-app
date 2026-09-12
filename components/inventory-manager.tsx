@@ -35,6 +35,8 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [lowStockThreshold, setLowStockThreshold] = useState(10);
+  const [showOnlyLowStock, setShowOnlyLowStock] = useState(false);
 
   const filteredRestockInventory = inventory.filter((item) =>
     item.name.toLowerCase().includes(restockSearchTerm.toLowerCase()) ||
@@ -51,10 +53,14 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
       setExpandedItems(newSet);
   }
 
-  const filteredInventory = inventory.filter((item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  const localLowStockCount = inventory.filter(i => i.quantity <= lowStockThreshold).length;
+
+  const filteredInventory = inventory.filter((item) => {
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStock = showOnlyLowStock ? item.quantity <= lowStockThreshold : true;
+      return matchesSearch && matchesStock;
+    });
 
     const handleAddProductClick = () => {
       setError(null);
@@ -154,13 +160,34 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">in inventory</p>
             </CardContent>
           </Card>
-          <Card className="border border-orange-200/70 bg-white/80 shadow-sm rounded-xl dark:border-slate-700 dark:bg-slate-900/70 hover:shadow-md transition-shadow">
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">Low Stock Items</CardTitle>
+          <Card 
+            className={`border border-orange-200/70 shadow-sm rounded-xl transition-all cursor-pointer ${showOnlyLowStock ? 'bg-orange-50 dark:bg-orange-900/30 ring-2 ring-orange-400' : 'bg-white/80 dark:bg-slate-900/70 hover:shadow-md'}`}
+            onClick={() => setShowOnlyLowStock(!showOnlyLowStock)}
+          >
+            <CardHeader className="pb-2 pt-4 px-4 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                Low Stock Items
+              </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 pt-0">
-              <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.lowStockCount}</div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">items with &lt; 10 qty</p>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">{localLowStockCount}</div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {showOnlyLowStock ? 'Filtering list...' : 'Click to filter list'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-800 rounded p-1 border dark:border-slate-700 shadow-sm" onClick={e => e.stopPropagation()}>
+                  <span className="text-[10px] text-muted-foreground ml-1">&le;</span>
+                  <Input 
+                    type="number" 
+                    value={lowStockThreshold} 
+                    onChange={e => setLowStockThreshold(Number(e.target.value) || 0)} 
+                    className="w-14 h-6 text-xs px-1 py-0 text-center border-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+                  />
+                  <span className="text-[10px] text-muted-foreground mr-1">qty</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
           <Card className="border border-lime-200/70 bg-white/80 shadow-sm rounded-xl dark:border-slate-700 dark:bg-slate-900/70 hover:shadow-md transition-shadow">
