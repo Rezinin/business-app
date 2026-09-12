@@ -361,7 +361,7 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
             <PopoverTrigger asChild>
               <div className="p-4 border rounded-lg bg-lime-50/30 dark:bg-lime-950/10 border-lime-100 dark:border-lime-800 cursor-pointer flex flex-col justify-center">
                 <span className="text-xs font-semibold text-lime-700 dark:text-lime-300 uppercase tracking-wider">
-                  Today's Total (Sales Collected + Debt Payments)
+                  Total Collected (Sales + Debts)
                 </span>
                 <span className="text-2xl font-bold text-lime-700 dark:text-lime-300 mt-1">
                   ₵{combinedTotal.toFixed(2)}
@@ -374,20 +374,20 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
             <PopoverContent>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <div className="text-sm text-gray-600 dark:text-gray-300">Sales Collected (today)</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Sales Collected</div>
                   <div className="font-semibold">₵{totalSalesCollected.toFixed(2)}</div>
                 </div>
                 <div className="flex justify-between">
-                  <div className="text-sm text-gray-600 dark:text-gray-300">Debt Payments (today)</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Debt Payments</div>
                   <div className="font-semibold">₵{paymentsForOlderSales.toFixed(2)}</div>
                 </div>
                 <div className="border-t pt-2">
-                  <div className="text-sm text-gray-600 dark:text-gray-300">Total Sales Revenue (items sold today)</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Total Sales Revenue</div>
                   <div className="font-semibold mt-1">₵{totalSalesRevenue.toFixed(2)}</div>
-                  <div className="text-xs text-gray-500 mt-1">(Includes items sold on credit — not necessarily received today)</div>
+                  <div className="text-xs text-gray-500 mt-1">(Includes items sold on credit)</div>
                 </div>
                 <div className="border-t pt-2 flex justify-between">
-                  <div className="text-sm font-medium">Combined</div>
+                  <div className="text-sm font-medium">Combined Total</div>
                   <div className="font-bold">₵{combinedTotal.toFixed(2)}</div>
                 </div>
               </div>
@@ -406,7 +406,7 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
               <TableHead>Customer</TableHead>
               <TableHead className="text-right">Qty</TableHead>
               <TableHead className="text-right">Total Price</TableHead>
-              <TableHead className="text-right">Paid Today</TableHead>
+              <TableHead className="text-right">Collected</TableHead>
               <TableHead>Salesperson</TableHead>
               {canManageSales && <TableHead>Actions</TableHead>}
             </TableRow>
