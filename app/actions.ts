@@ -2,8 +2,11 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { buildReceiptData, generateReceiptNumber, buildReceiptDataMultiple } from "@/lib/receipt-utils";
+import {
+  buildReceiptData,
+  buildReceiptDataMultiple,
+  buildDebtPaymentReceiptData,
+} from "@/lib/receipt-utils";
 import type { ReceiptDataPayload } from "@/lib/receipt-utils";
 
 async function storeReceipt(
@@ -35,8 +38,8 @@ async function storeReceipt(
     }
 
     return data;
-  } catch (error: any) {
-    const message = error?.message || "";
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "";
     if (message.includes("public.receipts") || message.includes("receipts")) {
       console.warn("Receipt table is unavailable; returning generated receipt data only.");
       return null;
@@ -64,7 +67,7 @@ async function getAllowNegativeInventorySetting(supabase: Awaited<ReturnType<typ
   }
 }
 
-async function assertManagerAccess(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function assertManagerAccess(supabase: Awaited<ReturnType<typeof createClient>>, action = "perform this action") {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     throw new Error("Not authenticated");
@@ -77,7 +80,7 @@ async function assertManagerAccess(supabase: Awaited<ReturnType<typeof createCli
     .single();
 
   if (profile?.role !== "manager") {
-    throw new Error("Only managers can change inventory policy");
+    throw new Error(`Permission denied: Only managers can ${action}`);
   }
 
   return user;
@@ -191,8 +194,34 @@ export async function restockProduct(formData: FormData) {
   revalidatePath("/dashboard/salesperson");
 }
 
+export async function assignProductBarcode(productId: string, barcode: string) {
+  const supabase = await createClient();
+  const trimmed = barcode.trim();
+  if (!trimmed) {
+    return { success: false, error: "Barcode cannot be empty" };
+  }
+
+  const { error } = await supabase
+    .from("inventory")
+    .update({ sku: trimmed })
+    .eq("id", productId);
+
+  if (error) {
+    console.error("Error assigning product barcode:", error);
+    if (error.code === "23505") {
+      return { success: false, error: "Another product already uses this barcode/SKU." };
+    }
+    return { success: false, error: error.message || "Failed to assign barcode" };
+  }
+
+  revalidatePath("/dashboard/manager");
+  revalidatePath("/dashboard/salesperson");
+  return { success: true };
+}
+
 export async function deleteProduct(id: string) {
   const supabase = await createClient();
+  await assertManagerAccess(supabase, "delete products");
 
   const { error } = await supabase.from("inventory").delete().eq("id", id);
 
@@ -342,6 +371,14 @@ export async function recordPayment(saleId: string, amount: number) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
+    // Fetch cashier profile
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
+    const cashierName = profile?.full_name || "Cashier";
+
     // Get current sale status
     const { data: sale } = await supabase.from("sales").select("*").eq("id", saleId).single();
     if (!sale) throw new Error("Sale not found");
@@ -369,14 +406,71 @@ export async function recordPayment(saleId: string, amount: number) {
         recorded_by: user.id
     });
 
+    // Fetch customer details if attached
+    let customerName = "Valued Customer";
+    let customerPhone = "";
+    if (sale.customer_id) {
+        const { data: cust } = await supabase
+            .from("customers")
+            .select("name, phone")
+            .eq("id", sale.customer_id)
+            .single();
+        if (cust) {
+            customerName = cust.name;
+            customerPhone = cust.phone || "";
+        }
+    }
+
+    // Build and store official debt payment receipt
+    const previousDebt = sale.total_price - (sale.amount_paid || 0);
+    const remainingDebt = Math.max(0, sale.total_price - newAmountPaid);
+    const receiptData = buildDebtPaymentReceiptData(
+        customerName,
+        customerPhone || undefined,
+        amount,
+        previousDebt,
+        remainingDebt,
+        cashierName,
+        "Cash"
+    );
+
+    const receipt = await storeReceipt(
+        supabase,
+        sale.id,
+        receiptData.receipt_number,
+        receiptData
+    );
+
     revalidatePath("/dashboard/manager");
     revalidatePath("/dashboard/salesperson");
+
+    return {
+        success: true,
+        receipt: receipt || { receipt_data: receiptData },
+    };
 }
 
 export async function recordCustomerPayment(customerId: string, amount: number) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
+
+    // Fetch cashier profile
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
+    const cashierName = profile?.full_name || "Cashier";
+
+    // Fetch customer details
+    const { data: customer } = await supabase
+        .from("customers")
+        .select("name, phone")
+        .eq("id", customerId)
+        .single();
+    const customerName = customer?.name || "Customer";
+    const customerPhone = customer?.phone || "";
 
     // Fetch all sales for this customer, oldest first
     const { data: sales, error: fetchError } = await supabase
@@ -429,16 +523,37 @@ export async function recordCustomerPayment(customerId: string, amount: number) 
         }
     }
 
+    // Build and store official customer debt payment receipt
+    const newRemainingDebt = Math.max(0, totalOutstanding - amount);
+    const receiptData = buildDebtPaymentReceiptData(
+        customerName,
+        customerPhone || undefined,
+        amount,
+        totalOutstanding,
+        newRemainingDebt,
+        cashierName,
+        "Cash"
+    );
+
+    const receipt = await storeReceipt(
+        supabase,
+        outstandingSales[0].id,
+        receiptData.receipt_number,
+        receiptData
+    );
+
     revalidatePath("/dashboard/manager");
     revalidatePath("/dashboard/salesperson");
+
+    return {
+        success: true,
+        receipt: receipt || { receipt_data: receiptData },
+    };
 }
 
 export async function deleteSale(saleId: string) {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    // Ideally check if user is manager here
+    await assertManagerAccess(supabase, "delete or void sales");
 
     // Get sale details to restore inventory
     const { data: sale } = await supabase.from("sales").select("*").eq("id", saleId).single();
@@ -463,12 +578,8 @@ export async function deleteSale(saleId: string) {
 }
 
 export async function deleteUser(userId: string) {
-    // This requires Service Role Key to delete from auth.users
-    // For now, we will just delete from profiles which might be enough for the UI
     const supabase = await createClient();
-
-    // Check if user is manager
-    // ...
+    await assertManagerAccess(supabase, "delete users");
 
     const { error } = await supabase.from("profiles").delete().eq("id", userId);
 
@@ -478,12 +589,7 @@ export async function deleteUser(userId: string) {
 
 export async function verifyUser(userId: string) {
   const supabase = await createClient();
-
-  // Check if current user is manager
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-
-  // In a real app, verify the current user is a manager here
+  await assertManagerAccess(supabase, "verify users");
 
   const { error } = await supabase
     .from("profiles")
@@ -500,10 +606,7 @@ export async function verifyUser(userId: string) {
 
 export async function toggleSalespersonProductAccess(userId: string, canAdd: boolean) {
   const supabase = await createClient();
-
-  // Check if current user is manager
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  await assertManagerAccess(supabase, "modify product permissions");
 
   const { error } = await supabase
     .from("profiles")
@@ -520,20 +623,7 @@ export async function toggleSalespersonProductAccess(userId: string, canAdd: boo
 
 export async function toggleUserBlock(userId: string, blocked: boolean) {
   const supabase = await createClient();
-
-  // Check if current user is manager
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-
-  const { data: currentProfile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (currentProfile?.role !== "manager" && currentProfile?.role !== null) {
-    throw new Error("Only managers can block/unblock users");
-  }
+  await assertManagerAccess(supabase, "suspend or unblock users");
 
   const { error } = await supabase
     .from("profiles")

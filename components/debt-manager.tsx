@@ -23,7 +23,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog"
 import {
@@ -33,6 +32,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { recordPayment, recordCustomerPayment, deleteSale } from "@/app/actions"
+import { POSReceipt } from "./pos-receipt"
+import type { ReceiptDataPayload } from "@/lib/receipt-utils"
 import { Trash2, MoreHorizontal, Loader2 } from "lucide-react"
 
 interface Customer {
@@ -48,7 +49,8 @@ interface DebtSale {
     total_price: number
     amount_paid: number
     quantity: number
-    inventory: {
+    product_name?: string
+    inventory?: {
         name: string
     }
 }
@@ -57,8 +59,9 @@ interface PaymentRecord {
     id: string
     created_at: string
     amount: number
-    sales: {
-        inventory: {
+    sales?: {
+        product_name?: string
+        inventory?: {
             name: string
         }
     }
@@ -75,6 +78,8 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
     const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null)
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
     const [isCustomerPayment, setIsCustomerPayment] = useState(false)
+    const [paymentReceipt, setPaymentReceipt] = useState<ReceiptDataPayload | null>(null)
+    const [receiptDialogOpen, setReceiptDialogOpen] = useState(false)
 
     const supabase = createClient()
     const submittingRef = useRef(false)
@@ -127,7 +132,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
         const { data, error } = await supabase
             .from("sales")
             .select(`
-                id, created_at, total_price, amount_paid, status, quantity,
+                id, created_at, total_price, amount_paid, status, quantity, product_name,
                 inventory(name)
             `)
             .eq("customer_id", customerId)
@@ -157,6 +162,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                 id, created_at, amount,
                 sales!inner(
                     customer_id,
+                    product_name,
                     inventory(name)
                 )
             `)
@@ -206,10 +212,11 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
         
         setLoading(true)
         try {
+            let res: any = null
             if (isCustomerPayment && selectedCustomer) {
-                await recordCustomerPayment(selectedCustomer.id, amount)
+                res = await recordCustomerPayment(selectedCustomer.id, amount)
             } else if (selectedSaleId) {
-                await recordPayment(selectedSaleId, amount)
+                res = await recordPayment(selectedSaleId, amount)
             }
             
             setPaymentDialogOpen(false)
@@ -219,9 +226,16 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                 fetchCustomerPayments(selectedCustomer.id)
                 fetchCustomersWithDebt() // Refresh list in case customer is fully paid
             }
-        } catch (e: any) {
+
+            // Open printable debt payment receipt dialog
+            if (res?.receipt?.receipt_data) {
+                setPaymentReceipt(res.receipt.receipt_data)
+                setReceiptDialogOpen(true)
+            }
+        } catch (e: unknown) {
             console.error(e)
-            alert(`Failed to record payment: ${e.message || "Unknown error"}`)
+            const msg = e instanceof Error ? e.message : "Unknown error"
+            alert(`Failed to record payment: ${msg}`)
         } finally {
             setLoading(false)
             submittingRef.current = false
@@ -240,12 +254,41 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
         }
     }, [selectedCustomer])
 
+    // Realtime Supabase synchronization for sales and payments
+    useEffect(() => {
+        const salesChannel = supabase
+            .channel("realtime-debts-sales")
+            .on("postgres_changes", { event: "*", schema: "public", table: "sales" }, () => {
+                fetchCustomersWithDebt()
+                if (selectedCustomer) {
+                    fetchCustomerDebts(selectedCustomer.id)
+                }
+            })
+            .subscribe()
+
+        const paymentsChannel = supabase
+            .channel("realtime-debts-payments")
+            .on("postgres_changes", { event: "*", schema: "public", table: "payments" }, () => {
+                fetchCustomersWithDebt()
+                if (selectedCustomer) {
+                    fetchCustomerDebts(selectedCustomer.id)
+                    fetchCustomerPayments(selectedCustomer.id)
+                }
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(salesChannel)
+            supabase.removeChannel(paymentsChannel)
+        }
+    }, [selectedCustomer])
+
     const totalDebt = debts.reduce((sum, debt) => sum + (debt.total_price - (debt.amount_paid || 0)), 0)
 
     return (
         <div className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-md border border-blue-200 dark:border-blue-800 text-sm text-blue-900 dark:text-blue-100">
-                <strong>ℹ️ Note:</strong> To add a new debt, go to the main dashboard, click "Record Sale" on a product, and select "Sell on Credit".
+            <div className="bg-lime-50 dark:bg-slate-800/80 p-4 rounded-xl border border-lime-200 dark:border-slate-700 text-sm text-gray-800 dark:text-gray-200 shadow-sm">
+                <strong>💡 Pro-tip:</strong> To issue credit or record a new customer debt, add items to the cart, select or enter the customer at checkout, and enter a partial amount or ₵0.00.
             </div>
             
             <div className="grid gap-6 md:grid-cols-2">
@@ -341,7 +384,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                         debts.map(debt => (
                                         <TableRow key={debt.id}>
                                             <TableCell>{new Date(debt.created_at).toLocaleDateString()}</TableCell>
-                                            <TableCell>{debt.inventory?.name}</TableCell>
+                                            <TableCell>{debt.inventory?.name || debt.product_name || "General Item"}</TableCell>
                                             <TableCell className="text-right">{debt.quantity}</TableCell>
                                             <TableCell className="text-right">₵{(debt.total_price / debt.quantity).toFixed(2)}</TableCell>
                                             <TableCell className="text-right text-red-500 font-bold">
@@ -415,7 +458,7 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                         payments.map(payment => (
                                         <TableRow key={payment.id}>
                                             <TableCell>{new Date(payment.created_at).toLocaleDateString()} {new Date(payment.created_at).toLocaleTimeString()}</TableCell>
-                                            <TableCell>{payment.sales?.inventory?.name || "Unknown Item"}</TableCell>
+                                            <TableCell>{payment.sales?.inventory?.name || payment.sales?.product_name || "Debt Payment"}</TableCell>
                                             <TableCell className="text-green-600 font-bold">
                                                 ₵{payment.amount.toFixed(2)}
                                             </TableCell>
@@ -461,6 +504,29 @@ export function DebtManager({ canDelete = false }: { canDelete?: boolean }) {
                                 ) : "Confirm Payment"}
                             </Button>
                         </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Printable Debt Payment Receipt Dialog */}
+                <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
+                    <DialogContent className="max-w-md w-[95vw]">
+                        <DialogHeader>
+                            <DialogTitle>Debt Payment Receipt</DialogTitle>
+                        </DialogHeader>
+                        {paymentReceipt && (
+                            <div className="space-y-4">
+                                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-lg p-2.5 text-emerald-800 dark:text-emerald-200 text-xs font-medium">
+                                    ✓ Debt payment confirmed. Printable receipt generated below:
+                                </div>
+                                <POSReceipt receipt={paymentReceipt} compact={false} />
+                                <Button
+                                    onClick={() => setReceiptDialogOpen(false)}
+                                    className="w-full bg-lime-600 hover:bg-lime-700 text-white font-semibold"
+                                >
+                                    Done
+                                </Button>
+                            </div>
+                        )}
                     </DialogContent>
                 </Dialog>
             </div>

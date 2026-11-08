@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useCart, CartItem } from "@/lib/cart-context";
+import { useCart } from "@/lib/cart-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { recordMultipleSale } from "@/app/actions";
 import { POSReceipt } from "./pos-receipt";
-import { ReceiptDataPayload } from "@/lib/receipt-utils";
+import { ReceiptDataPayload, BUSINESS_CONFIG } from "@/lib/receipt-utils";
+import { isDeviceOnline, saveOfflineSale } from "@/lib/offline-sync";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -21,10 +22,9 @@ interface Customer {
 
 interface CheckoutFormProps {
   onClose: () => void;
-  onCloseGuardChange?: (blocked: boolean) => void;
 }
 
-export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps) {
+export function CheckoutForm({ onClose }: CheckoutFormProps) {
   const { items, getTotal, clearCart } = useCart();
   const router = useRouter();
   const [status, setStatus] = useState<"paid" | "pending">("paid");
@@ -39,7 +39,6 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
   const [receiptData, setReceiptData] = useState<ReceiptDataPayload | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [saleConfirmed, setSaleConfirmed] = useState(false);
-  const [previewPrinted, setPreviewPrinted] = useState(false);
   const [salespersonName, setSalespersonName] = useState<string>("Current User");
   const supabase = createClient();
   const submittingRef = useRef(false);
@@ -55,33 +54,20 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
     }
   }, [derivedStatus, status]);
 
+  // Load all customers from the database for fast lookup
   useEffect(() => {
     const loadCustomers = async () => {
       const { data, error } = await supabase
-        .from("sales")
-        .select("customer_id, amount_paid, total_price, customers(id, name, phone)")
-        .not("customer_id", "is", null);
+        .from("customers")
+        .select("id, name, phone")
+        .order("name", { ascending: true });
 
       if (error) {
         console.error("Failed to load customers:", error);
         return;
       }
 
-      const customerMap = new Map<string, Customer>();
-
-      data?.forEach((sale: any) => {
-        const outstanding = Number(sale.total_price || 0) - Number(sale.amount_paid || 0);
-
-        if (sale.customers && outstanding > 0) {
-          customerMap.set(sale.customers.id, {
-            id: sale.customers.id,
-            name: sale.customers.name,
-            phone: sale.customers.phone,
-          });
-        }
-      });
-
-      setCustomers(Array.from(customerMap.values()).sort((left, right) => left.name.localeCompare(right.name)));
+      setCustomers((data as Customer[]) || []);
     };
 
     loadCustomers();
@@ -105,8 +91,8 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
             setSalespersonName(user.email.split("@")[0]);
           }
         }
-      } catch (e) {
-        // ignore and keep default
+      } catch {
+        // keep existing salespersonName
       }
     };
 
@@ -123,22 +109,10 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
     }
   }, [customers, selectedCustomerId]);
 
-  useEffect(() => {
-    // Always clear close lock on mount/unmount for a fresh session.
-    onCloseGuardChange?.(false);
-    return () => onCloseGuardChange?.(false);
-  }, [onCloseGuardChange]);
-
   const handleCheckout = async () => {
     setLoading(true);
     try {
-      // Import buildReceiptDataMultiple and buildReceipt from actions
-      // For preview, we'll generate the receipt data locally without recording
-      const salespersonName = "Current User"; // Will be fetched if needed
-      
-      // Build receipt data for preview
       const receiptNumber = `PREVIEW-${Date.now()}`;
-      // Ensure we have the latest salesperson name (avoid race with useEffect)
       let finalSalespersonName = salespersonName;
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -151,15 +125,15 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
           if (profile?.full_name) finalSalespersonName = profile.full_name;
           else if (user.email) finalSalespersonName = user.email.split("@")[0];
         }
-      } catch (e) {
+      } catch {
         // keep existing salespersonName
       }
 
       const receiptInfo = {
         receipt_number: receiptNumber,
-        business_name: "Rezinin Enterprise",
-        business_address: "Peace Star Hotel, Wa",
-        business_phone: "+233 24 995 7751",
+        business_name: BUSINESS_CONFIG.name,
+        business_address: BUSINESS_CONFIG.address,
+        business_phone: BUSINESS_CONFIG.phone,
         date: new Date().toLocaleDateString(),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         items: items.map(item => ({
@@ -181,8 +155,6 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
       };
       
       setReceiptData(receiptInfo);
-      setPreviewPrinted(false);
-      onCloseGuardChange?.(false);
       setPreviewMode(true);
     } catch (error) {
       console.error("Preview error:", error);
@@ -193,96 +165,132 @@ export function CheckoutForm({ onClose, onCloseGuardChange }: CheckoutFormProps)
   };
 
   const handleConfirmSale = async () => {
-    if (submittingRef.current) return; // Prevent double submission
+    if (submittingRef.current) return;
     submittingRef.current = true;
     setLoading(true);
-    try {
-      const response = await recordMultipleSale({
-        items: items.map((item) => ({
-          productId: item.id,
-          productName: item.name,
-          quantity: item.quantity,
-          price: item.price,
-        })),
+
+    const saleItems = items.map((item) => ({
+      productId: item.id,
+      productName: item.name,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+    const resolvedCustomer = customerName || "Walk-in Customer";
+    const resolvedMethod = paymentMethod === "Other" ? (otherPaymentLabel || "Other") : paymentMethod;
+
+    // Fast-path: If the device is detected offline, save to local queue immediately
+    if (!isDeviceOnline()) {
+      const offlineResult = saveOfflineSale({
+        items: saleItems,
         customerId: selectedCustomerId || undefined,
-        customerName: customerName || "Walk-in Customer",
+        customerName: resolvedCustomer,
         customerPhone,
         status: derivedStatus,
         amountPaid: parsedAmountPaid,
-        paymentMethod: paymentMethod === "Other" ? (otherPaymentLabel || "Other") : paymentMethod,
+        paymentMethod: resolvedMethod,
+      });
+
+      setReceiptData(offlineResult.receipt);
+      setSaleConfirmed(true);
+      clearCart();
+      setLoading(false);
+      submittingRef.current = false;
+      return;
+    }
+
+    try {
+      const response = await recordMultipleSale({
+        items: saleItems,
+        customerId: selectedCustomerId || undefined,
+        customerName: resolvedCustomer,
+        customerPhone,
+        status: derivedStatus,
+        amountPaid: parsedAmountPaid,
+        paymentMethod: resolvedMethod,
       });
 
       if (response.receipt?.receipt_data) {
         setReceiptData(response.receipt.receipt_data);
         setSaleConfirmed(true);
-        setPreviewPrinted(false);
-        onCloseGuardChange?.(false);
-        router.refresh(); // Subtly refresh page data
+        // Clear active cart immediately upon confirmation so no duplicates can ever occur
+        clearCart();
+        router.refresh();
       }
-    } catch (error) {
-      console.error("Confirmation error:", error);
-      alert("Error confirming sale. Please check the sales ledger before trying again to avoid duplicates.");
-      submittingRef.current = false; // Only allow retry on error
+    } catch (error: unknown) {
+      console.warn("Server confirmation failed; saving to offline queue:", error);
+      // Auto-fallback: If network drops mid-flight, do NOT lose the sale! Save locally.
+      const offlineResult = saveOfflineSale({
+        items: saleItems,
+        customerId: selectedCustomerId || undefined,
+        customerName: resolvedCustomer,
+        customerPhone,
+        status: derivedStatus,
+        amountPaid: parsedAmountPaid,
+        paymentMethod: resolvedMethod,
+      });
+
+      setReceiptData(offlineResult.receipt);
+      setSaleConfirmed(true);
+      clearCart();
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
   // Show receipt preview or final confirmation
   if (receiptData && previewMode) {
     if (saleConfirmed) {
-      // Sale has been confirmed and recorded
+      const isOfflineReceipt = receiptData.receipt_number?.startsWith("OFFLINE-");
       return (
         <div className="space-y-4">
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 text-green-800 dark:text-green-200 text-sm">
-            ✓ Sale successfully recorded
-          </div>
+          {isOfflineReceipt ? (
+            <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-lg p-3 text-amber-900 dark:text-amber-200 text-sm font-medium">
+              ⚡ <strong>Saved Locally in Offline Mode</strong>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                Receipt is ready for your customer. The sale will auto-sync to the cloud once network connectivity is restored.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 text-green-800 dark:text-green-200 text-sm font-medium">
+              ✓ Sale successfully recorded
+            </div>
+          )}
           <POSReceipt receipt={receiptData} compact={false} />
           <Button
             onClick={() => {
               clearCart();
               onClose();
             }}
-            className="w-full bg-lime-600 hover:bg-lime-700"
+            className="w-full bg-lime-600 hover:bg-lime-700 font-semibold"
           >
-            Close & New Order
+            Close & Start New Order
           </Button>
         </div>
       );
     } else {
-      // Preview mode - not yet confirmed
       return (
         <div className="space-y-4">
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-blue-800 dark:text-blue-200 text-sm">
-            ℹ️ Review the receipt below. You can print or save it before confirming the sale.
+            ℹ️ Review order details. You can print or download the receipt or confirm the sale below.
           </div>
-          <POSReceipt
-            receipt={receiptData}
-            compact={false}
-            onPrinted={() => {
-              setPreviewPrinted(true);
-              onCloseGuardChange?.(true);
-            }}
-          />
+          <POSReceipt receipt={receiptData} compact={false} />
           <div className="flex gap-2">
             <Button
               onClick={() => {
-                  // Back & Edit is allowed until a receipt has been printed.
-                  setPreviewMode(false);
-                  setReceiptData(null);
-                  setPreviewPrinted(false);
-                  onCloseGuardChange?.(false);
-                }}
+                setPreviewMode(false);
+                setReceiptData(null);
+              }}
               variant="outline"
               className="flex-1"
-              disabled={loading || previewPrinted}
+              disabled={loading}
             >
-              {previewPrinted ? "Back Disabled (Receipt Printed)" : "Back & Edit"}
+              Back & Edit
             </Button>
             <Button
               onClick={handleConfirmSale}
               disabled={loading}
-              className="flex-1 bg-lime-600 hover:bg-lime-700 text-white"
+              className="flex-1 bg-lime-600 hover:bg-lime-700 text-white font-semibold"
             >
               {loading ? (
                 <>

@@ -92,18 +92,32 @@ export function ReceiptHistory({ limit = 10 }: ReceiptHistoryProps) {
             <CardContent className="pt-6">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                  <p className="font-semibold text-lg">
-                    Receipt #{receipt.receipt_number}
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-semibold text-base md:text-lg">
+                      Receipt #{receipt.receipt_number}
+                    </p>
+                    {receipt.receipt_number?.startsWith("REC-PAY-") || receipt.receipt_data?.status?.includes("Debt") ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        🤝 Debt Payment
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                        🛒 Sale
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {format(new Date(receipt.created_at), "PPP p")} &bull; Cashier: {receipt.receipt_data.salesperson_name || "Staff"}
                   </p>
-                  <p className="text-sm text-gray-600">
-                    {format(new Date(receipt.created_at), "PPP p")}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Items: {receipt.receipt_data.items.length} | Total: ₵
-                    {receipt.receipt_data.total.toFixed(2)}
+                  <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">
+                    {receipt.receipt_number?.startsWith("REC-PAY-") || receipt.receipt_data?.status?.includes("Debt") ? (
+                      <>Customer: <span className="font-bold text-blue-600 dark:text-blue-400">{receipt.receipt_data.customer_name || "Valued Customer"}</span> &bull; Paid: <span className="font-bold text-lime-700 dark:text-lime-400">₵{(receipt.receipt_data.amount_paid || receipt.receipt_data.total).toFixed(2)}</span></>
+                    ) : (
+                      <>Items: <span className="font-bold">{receipt.receipt_data.items?.length || 0}</span> &bull; Total: <span className="font-bold text-lime-700 dark:text-lime-400">₵{receipt.receipt_data.total.toFixed(2)}</span></>
+                    )}
                   </p>
                   {receipt.printed_count > 0 && (
-                    <p className="text-xs text-blue-600 mt-1">
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                       Printed {receipt.printed_count} time(s)
                     </p>
                   )}

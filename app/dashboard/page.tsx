@@ -20,10 +20,8 @@ export default async function DashboardPage() {
 
   if (profile?.role === "manager") {
     return redirect("/dashboard/manager");
-  } else if (profile?.role === "salesperson") {
-    return redirect("/dashboard/salesperson");
   } else {
-    // Treat users with no role as Developers/Managers
-    return redirect("/dashboard/manager");
+    // Default standard access to salesperson dashboard
+    return redirect("/dashboard/salesperson");
   }
 }

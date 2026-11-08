@@ -60,6 +60,12 @@ export function formatReceiptDateTime(): { date: string; time: string } {
   return { date, time };
 }
 
+export const BUSINESS_CONFIG = {
+  name: "Rezinin Enterprise",
+  address: "Peace Star Hotel, Wa, Ghana",
+  phone: "+233 24 995 7751",
+};
+
 /**
  * Build receipt data object
  */
@@ -86,9 +92,9 @@ export function buildReceiptData(
 
   return {
     receipt_number: generateReceiptNumber(),
-    business_name: "Rezinin Enterprise",
-    business_address: "Ghana",
-    business_phone: "+233 24 995 7751",
+    business_name: BUSINESS_CONFIG.name,
+    business_address: BUSINESS_CONFIG.address,
+    business_phone: BUSINESS_CONFIG.phone,
     date,
     time,
     items: [
@@ -100,7 +106,7 @@ export function buildReceiptData(
       },
     ],
     subtotal,
-    tax: undefined, // Add tax calculation if needed
+    tax: undefined,
     total,
     payment_method: resolvedPaymentMethod,
     amount_paid: amountPaid,
@@ -142,14 +148,14 @@ export function buildReceiptDataMultiple(
 
   return {
     receipt_number: generateReceiptNumber(),
-    business_name: "Rezinin Enterprise",
-    business_address: "Ghana",
-    business_phone: "+233 24 995 7751",
+    business_name: BUSINESS_CONFIG.name,
+    business_address: BUSINESS_CONFIG.address,
+    business_phone: BUSINESS_CONFIG.phone,
     date,
     time,
     items: receiptItems,
     subtotal,
-    tax: undefined, // Add tax calculation if needed
+    tax: undefined,
     total,
     payment_method: resolvedPaymentMethod,
     amount_paid: amountPaid,
@@ -159,5 +165,49 @@ export function buildReceiptDataMultiple(
     salesperson_name: salespersonName,
     business_logo: businessLogo,
     status,
+  };
+}
+
+/**
+ * Build receipt data for debt payments
+ */
+export function buildDebtPaymentReceiptData(
+  customerName: string,
+  customerPhone: string | undefined,
+  amountPaid: number,
+  previousBalance: number,
+  remainingBalance: number,
+  salespersonName: string,
+  paymentMethod: string = "Cash"
+): ReceiptDataPayload {
+  const { date, time } = formatReceiptDateTime();
+  const paymentItemName =
+    remainingBalance <= 0
+      ? `Debt Clearance (Full Settlement - Was: ₵${previousBalance.toFixed(2)})`
+      : `Debt Payment (Prev: ₵${previousBalance.toFixed(2)} | Rem: ₵${remainingBalance.toFixed(2)})`;
+
+  return {
+    receipt_number: generateReceiptNumber().replace("REC-", "REC-PAY-"),
+    business_name: BUSINESS_CONFIG.name,
+    business_address: BUSINESS_CONFIG.address,
+    business_phone: BUSINESS_CONFIG.phone,
+    date,
+    time,
+    items: [
+      {
+        name: paymentItemName,
+        quantity: 1,
+        unit_price: amountPaid,
+        total_price: amountPaid,
+      },
+    ],
+    subtotal: amountPaid,
+    total: amountPaid,
+    payment_method: paymentMethod,
+    amount_paid: amountPaid,
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    salesperson_name: salespersonName,
+    status: remainingBalance <= 0 ? "Debt Paid in Full" : `Partial Payment (Owed: ₵${remainingBalance.toFixed(2)})`,
   };
 }

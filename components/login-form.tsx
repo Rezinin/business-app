@@ -54,7 +54,7 @@ export function LoginForm({
           router.push("/dashboard/salesperson");
         }
       } else {
-        router.push("/protected");
+        router.push("/dashboard");
       }
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");

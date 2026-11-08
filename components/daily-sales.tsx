@@ -355,44 +355,59 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
             Showing all activity for {new Date(selectedDate).toLocaleDateString()}.
         </p>
 
-        {/* Stats Grid - single combined card only; details moved into popover */}
-        <div className="grid grid-cols-1 gap-4 mt-4">
-          <Popover>
-            <PopoverTrigger asChild>
-              <div className="p-4 border rounded-lg bg-lime-50/30 dark:bg-lime-950/10 border-lime-100 dark:border-lime-800 cursor-pointer flex flex-col justify-center">
-                <span className="text-xs font-semibold text-lime-700 dark:text-lime-300 uppercase tracking-wider">
-                  Total Collected (Sales + Debts)
-                </span>
-                <span className="text-2xl font-bold text-lime-700 dark:text-lime-300 mt-1">
-                  ₵{combinedTotal.toFixed(2)}
-                </span>
-                <span className="text-xs text-lime-700 dark:text-lime-300 mt-1">
-                  Click for breakdown and revenue details
-                </span>
-              </div>
-            </PopoverTrigger>
-            <PopoverContent>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <div className="text-sm text-gray-600 dark:text-gray-300">Sales Collected</div>
-                  <div className="font-semibold">₵{totalSalesCollected.toFixed(2)}</div>
-                </div>
-                <div className="flex justify-between">
-                  <div className="text-sm text-gray-600 dark:text-gray-300">Debt Payments</div>
-                  <div className="font-semibold">₵{paymentsForOlderSales.toFixed(2)}</div>
-                </div>
-                <div className="border-t pt-2">
-                  <div className="text-sm text-gray-600 dark:text-gray-300">Total Sales Revenue</div>
-                  <div className="font-semibold mt-1">₵{totalSalesRevenue.toFixed(2)}</div>
-                  <div className="text-xs text-gray-500 mt-1">(Includes items sold on credit)</div>
-                </div>
-                <div className="border-t pt-2 flex justify-between">
-                  <div className="text-sm font-medium">Combined Total</div>
-                  <div className="font-bold">₵{combinedTotal.toFixed(2)}</div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+        {/* Transparent Overview Cards - Total Cash Collected & Debt Breakdown */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+          {/* Card 1: Total Cash in Drawer */}
+          <div className="p-4 rounded-xl border border-lime-200 dark:border-lime-800 bg-lime-50/60 dark:bg-lime-950/20 shadow-sm">
+            <div className="text-xs font-semibold text-lime-800 dark:text-lime-300 uppercase tracking-wider flex items-center gap-1.5">
+              💰 Total Cash Collected
+            </div>
+            <div className="text-2xl font-extrabold text-lime-700 dark:text-lime-400 mt-1.5">
+              ₵{combinedTotal.toFixed(2)}
+            </div>
+            <div className="text-[11px] text-lime-700/80 dark:text-lime-400/80 mt-1">
+              Total physical money received today (Sales + Debts)
+            </div>
+          </div>
+
+          {/* Card 2: Direct Sales Cash */}
+          <div className="p-4 rounded-xl border border-border bg-white dark:bg-slate-900/60 shadow-sm">
+            <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+              🏷️ Direct Sales Cash
+            </div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1.5">
+              ₵{totalSalesCollected.toFixed(2)}
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-1">
+              Cash from sales initiated today
+            </div>
+          </div>
+
+          {/* Card 3: Debt Payments Collected */}
+          <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/20 shadow-sm">
+            <div className="text-xs font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+              🤝 Debt Payments Received
+            </div>
+            <div className="text-2xl font-extrabold text-blue-700 dark:text-blue-400 mt-1.5">
+              ₵{paymentsForOlderSales.toFixed(2)}
+            </div>
+            <div className="text-[11px] text-blue-700/80 dark:text-blue-400/80 mt-1">
+              Customer debt repayments counted into today's cash
+            </div>
+          </div>
+
+          {/* Card 4: Total Merchandise Sold (Revenue) */}
+          <div className="p-4 rounded-xl border border-border bg-white dark:bg-slate-900/60 shadow-sm">
+            <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+              📊 Total Products Sold
+            </div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1.5">
+              ₵{totalSalesRevenue.toFixed(2)}
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-1">
+              Total merchandise value (including credit)
+            </div>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -437,7 +452,7 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
                     </span>
                   ) : (
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                      Payment
+                      🤝 Debt Payment
                     </span>
                   )}
                 </TableCell>

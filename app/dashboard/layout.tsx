@@ -48,7 +48,7 @@ export default async function DashboardLayout({
     );
   }
 
-  if (profile && !profile.verified) {
+  if (!profile || !profile.verified) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4 text-center">
         <h1 className="text-2xl font-bold mb-2">Account Pending Verification</h1>
@@ -58,7 +58,7 @@ export default async function DashboardLayout({
         </p>
         <div className="mt-6">
             <form action="/auth/signout" method="post">
-                <button className="text-sm underline">Sign Out</button>
+                <button className="px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-sm font-medium">Sign Out</button>
             </form>
         </div>
       </div>
