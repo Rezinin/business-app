@@ -10,8 +10,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Camera, Barcode, CheckCircle2, AlertCircle, RefreshCw, Link as LinkIcon, Search } from "lucide-react";
-import { assignProductBarcode } from "@/app/actions";
+import { Camera, Barcode, CheckCircle2, AlertCircle, RefreshCw, Link as LinkIcon, Search, Plus, Lock } from "lucide-react";
+import { assignProductBarcode, createProduct } from "@/app/actions";
 
 /** Barcode detector interface used by both native and polyfill implementations */
 interface BarcodeDetectorLike {
@@ -508,16 +508,38 @@ export function LinkBarcodeDialog<T extends ScannedProduct = ScannedProduct>({
   open,
   onOpenChange,
   onLinkedAndAdded,
+  canAddProducts = true,
+  canPairBarcodes = true,
 }: {
   barcode: string | null;
   inventory: T[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLinkedAndAdded: (product: T) => void;
+  canAddProducts?: boolean;
+  canPairBarcodes?: boolean;
 }) {
+  const hasAnyPermission = canPairBarcodes || canAddProducts;
+  const initialMode = canPairBarcodes ? "pair" : "create";
+  const [mode, setMode] = useState<"pair" | "create">(initialMode);
   const [search, setSearch] = useState("");
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // New product form states
+  const [newName, setNewName] = useState("");
+  const [newPrice, setNewPrice] = useState("");
+  const [newQuantity, setNewQuantity] = useState("10");
+  const [creating, setCreating] = useState(false);
+
+  // Keep mode in sync if permissions change
+  useEffect(() => {
+    if (!canPairBarcodes && canAddProducts) {
+      setMode("create");
+    } else if (canPairBarcodes && !canAddProducts) {
+      setMode("pair");
+    }
+  }, [canPairBarcodes, canAddProducts]);
 
   if (!barcode) return null;
 
@@ -544,60 +566,235 @@ export function LinkBarcodeDialog<T extends ScannedProduct = ScannedProduct>({
     }
   };
 
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || !newPrice.trim()) {
+      setError("Please enter a product name and price");
+      return;
+    }
+    const priceNum = parseFloat(newPrice);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      setError("Please enter a valid price greater than 0");
+      return;
+    }
+
+    setCreating(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("name", newName.trim());
+      formData.append("sku", barcode);
+      formData.append("price", priceNum.toString());
+      formData.append("quantity", (parseInt(newQuantity) || 0).toString());
+      formData.append("description", "");
+
+      const res = await createProduct(formData);
+      if (!res.success || !res.product) {
+        setError(res.error || "Failed to create product");
+        return;
+      }
+      playScannerBeep(true);
+      onLinkedAndAdded(res.product as unknown as T);
+      onOpenChange(false);
+      setNewName("");
+      setNewPrice("");
+      setNewQuantity("10");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create product");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md w-[95vw]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <LinkIcon className="w-5 h-5 text-lime-600" />
-            Link New Barcode to Product
+            Unrecognized Barcode Detected
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-900 dark:text-amber-200">
-            <p className="font-semibold">New Barcode Detected: <code className="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded font-mono">{barcode}</code></p>
-            <p className="mt-1">
-              Select which product this barcode belongs to. The system will remember it forever!
-            </p>
-          </div>
-
-          {error && (
-            <div className="p-2.5 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
-              {error}
+        {!hasAnyPermission ? (
+          /* Permission Locked View for Non-Authorized Salespersons */
+          <div className="space-y-4 py-2">
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-center space-y-2.5">
+              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/60 flex items-center justify-center mx-auto text-amber-600 dark:text-amber-400">
+                <Lock className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-sm text-amber-950 dark:text-amber-100">
+                Authorization Required
+              </h3>
+              <div className="inline-block bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 px-3 py-1 rounded-md font-mono text-xs font-bold text-amber-950 dark:text-amber-200 shadow-sm">
+                {barcode}
+              </div>
+              <p className="text-xs text-amber-800 dark:text-amber-300 max-w-xs mx-auto leading-relaxed">
+                This barcode is not linked to any product. Salespersons require Manager permission to pair barcodes or register new goods.
+              </p>
+              <p className="text-[11px] text-muted-foreground pt-1">
+                Please notify a store manager or shift supervisor to add or pair this item.
+              </p>
             </div>
-          )}
-
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search product to link..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9 text-xs"
-            />
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+                Dismiss
+              </Button>
+            </div>
           </div>
+        ) : (
+          <div className="space-y-4 py-1">
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-900 dark:text-amber-200">
+              <p className="font-semibold">
+                Scanned Barcode: <code className="bg-amber-100 dark:bg-amber-900 px-1.5 py-0.5 rounded font-mono font-bold text-amber-950 dark:text-amber-100">{barcode}</code>
+              </p>
+              <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-300">
+                {canPairBarcodes && canAddProducts
+                  ? "This barcode is not linked yet. Pair it to an existing product or create a new one!"
+                  : canPairBarcodes
+                  ? "Pair this barcode to an existing item in your product catalog."
+                  : "Create a new product for this barcode."}
+              </p>
+            </div>
 
-          <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
-            {filtered.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleLinkProduct(item)}
-                disabled={linking}
-                className="w-full text-left p-2.5 rounded-lg border hover:bg-lime-50 dark:hover:bg-slate-800 transition-colors flex justify-between items-center text-xs"
-              >
+            {/* Mode Switcher Tabs (Only shown if user has BOTH permissions) */}
+            {canPairBarcodes && canAddProducts ? (
+              <div className="flex border-b border-border text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => { setMode("pair"); setError(null); }}
+                  className={`flex-1 py-2 text-center border-b-2 transition-colors ${
+                    mode === "pair"
+                      ? "border-lime-600 text-lime-700 dark:text-lime-400 font-bold"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  🔗 Pair to Existing ({inventory.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode("create"); setError(null); }}
+                  className={`flex-1 py-2 text-center border-b-2 transition-colors ${
+                    mode === "create"
+                      ? "border-lime-600 text-lime-700 dark:text-lime-400 font-bold"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  ➕ Create as New Product
+                </button>
+              </div>
+            ) : null}
+
+            {error && (
+              <div className="p-2.5 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
+                {error}
+              </div>
+            )}
+
+            {mode === "pair" && canPairBarcodes ? (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search existing product name..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-8 h-9 text-xs"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
+                  {filtered.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleLinkProduct(item)}
+                      disabled={linking}
+                      className="w-full text-left p-2.5 rounded-lg border hover:border-lime-500 hover:bg-lime-50/50 dark:hover:bg-slate-800 transition-colors flex justify-between items-center text-xs group"
+                    >
+                      <div>
+                        <div className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-lime-700 dark:group-hover:text-lime-400">
+                          {item.name}
+                        </div>
+                        <div className="text-gray-400 text-[10px]">
+                          Current SKU: {item.sku || "None (unlinked)"}
+                        </div>
+                      </div>
+                      <div className="font-bold text-lime-700 dark:text-lime-400">
+                        ₵{item.price.toFixed(2)}
+                      </div>
+                    </button>
+                  ))}
+                  {filtered.length === 0 && (
+                    <div className="text-center py-6 text-xs text-muted-foreground">
+                      No matching products found.{" "}
+                      {canAddProducts && (
+                        <button
+                          type="button"
+                          onClick={() => setMode("create")}
+                          className="text-lime-600 font-semibold underline underline-offset-2 ml-1"
+                        >
+                          Create it as a new product &rarr;
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : mode === "create" && canAddProducts ? (
+              <form onSubmit={handleCreateProduct} className="space-y-3">
                 <div>
-                  <div className="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
-                  <div className="text-gray-400 text-[10px]">Current SKU: {item.sku || "None"}</div>
+                  <label className="text-xs font-semibold text-foreground">Product Name *</label>
+                  <Input
+                    placeholder="e.g. Club Beer 625ml, Malt Can..."
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="h-9 text-xs mt-1"
+                    required
+                    autoFocus
+                  />
                 </div>
-                <div className="font-bold text-lime-700 dark:text-lime-400">
-                  ₵{item.price.toFixed(2)}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">Selling Price (₵) *</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={newPrice}
+                      onChange={(e) => setNewPrice(e.target.value)}
+                      className="h-9 text-xs mt-1 font-mono"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">Initial Stock</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="10"
+                      value={newQuantity}
+                      onChange={(e) => setNewQuantity(e.target.value)}
+                      className="h-9 text-xs mt-1 font-mono"
+                    />
+                  </div>
                 </div>
-              </button>
-            ))}
+
+                <Button
+                  type="submit"
+                  disabled={creating}
+                  className="w-full h-9 text-xs bg-lime-600 hover:bg-lime-700 text-white font-semibold gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{creating ? "Creating Product..." : "Create Product & Add to Cart"}</span>
+                </Button>
+              </form>
+            ) : null}
           </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );

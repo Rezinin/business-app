@@ -23,7 +23,7 @@ export default async function SalespersonDashboard() {
   // Fetch current user profile to check permissions
   const { data: currentProfile } = await supabase
     .from("profiles")
-    .select("role, can_add_products, full_name")
+    .select("*")
     .eq("id", user.id)
     .single();
 
@@ -94,6 +94,7 @@ export default async function SalespersonDashboard() {
           <SalespersonDashboardStack
             inventory={inventory || []}
             canAddProducts={Boolean(currentProfile?.can_add_products)}
+            canPairBarcodes={Boolean(currentProfile?.can_pair_barcodes || isManager)}
             isManager={isManager}
             userId={user.id}
           />

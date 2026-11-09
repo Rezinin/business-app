@@ -1,6 +1,6 @@
 "use client";
 
-import { deleteUser, verifyUser, toggleSalespersonProductAccess, toggleUserBlock } from "@/app/actions";
+import { deleteUser, verifyUser, toggleSalespersonProductAccess, toggleSalespersonBarcodeAccess, toggleUserBlock } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash, CheckCircle, Loader2, Package, ShieldX, ShieldCheck } from "lucide-react";
+import { MoreHorizontal, Trash, CheckCircle, Loader2, Package, Barcode, ShieldX, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 
@@ -55,6 +55,18 @@ export function UserManager({ users }: { users: any[] }) {
       }
   };
 
+  const handleToggleBarcodeAccess = async (userId: string, currentValue: boolean) => {
+      setLoadingId(userId);
+      try {
+          await toggleSalespersonBarcodeAccess(userId, !currentValue);
+      } catch (error) {
+          console.error(error);
+          alert("Failed to update barcode pairing permissions.");
+      } finally {
+          setLoadingId(null);
+      }
+  };
+
   const handleToggleBlock = async (userId: string, currentlyBlocked: boolean) => {
       const action = currentlyBlocked ? "unblock" : "block";
       if (!currentlyBlocked && !confirm(`Are you sure you want to block this user? They will be unable to access the dashboard.`)) return;
@@ -86,7 +98,8 @@ export function UserManager({ users }: { users: any[] }) {
                     {user.blocked && <Badge variant="destructive" className="bg-red-600">Blocked</Badge>}
                     {!user.blocked && !user.verified && <Badge variant="destructive">Pending</Badge>}
                     {!user.blocked && user.verified && <Badge variant="secondary">Verified</Badge>}
-                    {user.role === "salesperson" && user.can_add_products && <Badge className="bg-blue-600">Can Add Products</Badge>}
+                    {user.role === "salesperson" && user.can_add_products && <Badge className="bg-blue-600">Can Create Products</Badge>}
+                    {user.role === "salesperson" && user.can_pair_barcodes && <Badge className="bg-lime-600">Can Pair Barcodes</Badge>}
                 </div>
                 <p className="text-sm text-muted-foreground capitalize">{user.role}</p>
                 <p className="text-xs text-muted-foreground">ID: {user.id}</p>
@@ -116,6 +129,17 @@ export function UserManager({ users }: { users: any[] }) {
                         </DropdownMenuItem>
                       )}
 
+                      {/* Toggle Barcode Pairing Access - only for verified salespersons */}
+                      {user.role === "salesperson" && user.verified && (
+                        <DropdownMenuItem
+                          onClick={() => handleToggleBarcodeAccess(user.id, Boolean(user.can_pair_barcodes))}
+                          disabled={loadingId === user.id}
+                        >
+                          <Barcode className="mr-2 h-4 w-4 text-lime-600" />
+                          {user.can_pair_barcodes ? "Revoke Barcode Pairing" : "Grant Barcode Pairing"}
+                        </DropdownMenuItem>
+                      )}
+
                       {/* Toggle Product Access - only for verified salespersons */}
                       {user.role === "salesperson" && user.verified && (
                         <DropdownMenuItem
@@ -123,7 +147,7 @@ export function UserManager({ users }: { users: any[] }) {
                           disabled={loadingId === user.id}
                         >
                           <Package className="mr-2 h-4 w-4 text-blue-600" />
-                          {user.can_add_products ? "Revoke Product Access" : "Grant Product Access"}
+                          {user.can_add_products ? "Revoke Product Creation" : "Grant Product Creation"}
                         </DropdownMenuItem>
                       )}
 

@@ -68,7 +68,15 @@ function ProductCard({ item }: { item: InventoryItem }) {
   );
 }
 
-export function ProductGrid({ inventory: initialInventory }: { inventory: InventoryItem[] }) {
+export function ProductGrid({
+  inventory: initialInventory,
+  canAddProducts = true,
+  canPairBarcodes = true,
+}: {
+  inventory: InventoryItem[];
+  canAddProducts?: boolean;
+  canPairBarcodes?: boolean;
+}) {
   const [items, setItems] = useState<InventoryItem[]>(initialInventory || []);
   const [searchTerm, setSearchTerm] = useState("");
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
@@ -233,6 +241,8 @@ export function ProductGrid({ inventory: initialInventory }: { inventory: Invent
         open={Boolean(unlinkedBarcode)}
         onOpenChange={(open) => !open && setUnlinkedBarcode(null)}
         onLinkedAndAdded={(p) => handleQuickAdd(p as InventoryItem)}
+        canAddProducts={canAddProducts}
+        canPairBarcodes={canPairBarcodes}
       />
     </div>
   );

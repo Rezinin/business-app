@@ -15,6 +15,7 @@ import { ShoppingCart, BarChart3, Handshake, Package, Store } from "lucide-react
 interface SalespersonDashboardStackProps {
   inventory: InventoryItem[];
   canAddProducts: boolean;
+  canPairBarcodes?: boolean;
   isManager: boolean;
   userId: string;
 }
@@ -22,6 +23,7 @@ interface SalespersonDashboardStackProps {
 export function SalespersonDashboardStack({
   inventory,
   canAddProducts,
+  canPairBarcodes = false,
   isManager,
   userId,
 }: SalespersonDashboardStackProps) {
@@ -117,7 +119,11 @@ export function SalespersonDashboardStack({
             <div className="flex gap-4 items-start">
               {/* Products — always fills all available space */}
               <div className="flex-1 min-w-0">
-                <ProductGrid inventory={inventory || []} />
+                <ProductGrid
+                  inventory={inventory || []}
+                  canAddProducts={canAddProducts}
+                  canPairBarcodes={canPairBarcodes || isManager}
+                />
               </div>
 
               {/* Slim Cart Sidebar — only appears when there's something to show */}

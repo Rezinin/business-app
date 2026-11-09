@@ -105,6 +105,21 @@ export async function updateInventoryPolicy(allowNegativeInventory: boolean) {
 
 export async function createProduct(formData: FormData) {
   const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, can_add_products")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "manager" && !profile?.can_add_products) {
+    return { success: false, error: "Permission denied: Only managers or authorized salespersons can create products." };
+  }
   
   const name = formData.get("name") as string;
   const sku = formData.get("sku") as string;
@@ -112,13 +127,13 @@ export async function createProduct(formData: FormData) {
   const quantity = parseInt(formData.get("quantity") as string);
   const description = formData.get("description") as string;
 
-  const { error } = await supabase.from("inventory").insert({
+  const { data, error } = await supabase.from("inventory").insert({
     name,
     sku,
     price,
     quantity,
     description,
-  });
+  }).select().single();
 
   if (error) {
     console.error("Error creating product:", error);
@@ -130,7 +145,7 @@ export async function createProduct(formData: FormData) {
 
   revalidatePath("/dashboard/manager");
   revalidatePath("/dashboard/salesperson");
-  return { success: true };
+  return { success: true, product: data };
 }
 
 export async function updateProduct(formData: FormData) {
@@ -199,6 +214,21 @@ export async function assignProductBarcode(productId: string, barcode: string) {
   const trimmed = barcode.trim();
   if (!trimmed) {
     return { success: false, error: "Barcode cannot be empty" };
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, can_pair_barcodes")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "manager" && !profile?.can_pair_barcodes) {
+    return { success: false, error: "Permission denied: Only managers or authorized salespersons can pair barcodes." };
   }
 
   const { error } = await supabase
@@ -619,6 +649,24 @@ export async function toggleSalespersonProductAccess(userId: string, canAdd: boo
   }
 
   revalidatePath("/dashboard/manager");
+}
+
+export async function toggleSalespersonBarcodeAccess(userId: string, canPair: boolean) {
+  const supabase = await createClient();
+  await assertManagerAccess(supabase, "modify barcode pairing permissions");
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ can_pair_barcodes: canPair })
+    .eq("id", userId);
+
+  if (error) {
+    console.error("Error updating salesperson barcode permissions:", error);
+    throw new Error("Failed to update barcode pairing permissions");
+  }
+
+  revalidatePath("/dashboard/manager");
+  revalidatePath("/dashboard/salesperson");
 }
 
 export async function toggleUserBlock(userId: string, blocked: boolean) {

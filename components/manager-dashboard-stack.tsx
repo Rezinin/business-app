@@ -126,7 +126,11 @@ export function ManagerDashboardStack({
             <div className="flex gap-4 items-start">
               {/* Products — always fills all available space */}
               <div className="flex-1 min-w-0">
-                <ProductGrid inventory={inventory || []} />
+                <ProductGrid
+                  inventory={inventory || []}
+                  canAddProducts={true}
+                  canPairBarcodes={true}
+                />
               </div>
 
               {/* Slim Cart Sidebar — only appears when there's something to show */}
