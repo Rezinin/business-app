@@ -19,6 +19,11 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SaleActions } from "@/components/sale-actions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Printer, Loader2 } from "lucide-react";
+import { POSReceipt } from "./pos-receipt";
+import { type ReceiptDataPayload, BUSINESS_CONFIG } from "@/lib/receipt-utils";
 
 interface DailySalesProps {
   userId?: string; // If provided, filter by this user
@@ -84,8 +89,69 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [salespersonMap, setSalespersonMap] = useState<Record<string, string>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptDataPayload | null>(null);
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
 
   const supabase = createClient();
+
+  const handlePrintReceipt = async (row: UnifiedRow) => {
+    setLoadingReceiptId(row.id);
+    try {
+      // 1. Check if an official stored receipt exists in the receipts table
+      const { data: receiptRow } = await supabase
+        .from("receipts")
+        .select("receipt_data")
+        .eq("sale_id", row.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (receiptRow?.receipt_data) {
+        setSelectedReceipt(receiptRow.receipt_data as ReceiptDataPayload);
+        setReceiptDialogOpen(true);
+        return;
+      }
+
+      // 2. Fallback: generate a clean valid receipt payload from row data
+      const isPayment = row.type === 'payment';
+      const cleanTotal = Number(row.totalPrice || row.amountPaidToday || 0);
+      const cleanPaid = Number(row.amountPaidToday || 0);
+      const fallback: ReceiptDataPayload = {
+        receipt_number: `REC-${row.id.slice(0, 8).toUpperCase()}`,
+        business_name: BUSINESS_CONFIG.name,
+        business_address: BUSINESS_CONFIG.address,
+        business_phone: BUSINESS_CONFIG.phone,
+        date: new Date(row.time).toLocaleDateString(),
+        time: new Date(row.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        items: [
+          {
+            name: row.productName,
+            quantity: typeof row.quantity === 'number' ? row.quantity : 1,
+            unit_price: row.totalPrice ? Number(row.totalPrice) / (typeof row.quantity === 'number' ? row.quantity : 1) : cleanPaid,
+            total_price: cleanTotal,
+          }
+        ],
+        subtotal: cleanTotal,
+        tax: 0,
+        total: cleanTotal,
+        payment_method: "Cash",
+        amount_paid: cleanPaid,
+        change: cleanPaid > cleanTotal ? cleanPaid - cleanTotal : undefined,
+        customer_name: row.customerName || "Walk-in Customer",
+        salesperson_name: row.salespersonId === currentUserId ? "You" : (salespersonMap[row.salespersonId] || "Staff"),
+        status: cleanPaid >= cleanTotal ? "paid" : "pending",
+        receipt_type: isPayment ? "debt_payment" : "sale",
+      };
+
+      setSelectedReceipt(fallback);
+      setReceiptDialogOpen(true);
+    } catch (err) {
+      console.error("Error loading receipt:", err);
+    } finally {
+      setLoadingReceiptId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -423,19 +489,20 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
               <TableHead className="text-right">Total Price</TableHead>
               <TableHead className="text-right">Collected</TableHead>
               <TableHead>Salesperson</TableHead>
+              <TableHead className="text-center w-14">Receipt</TableHead>
               {canManageSales && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
                 <TableRow>
-                  <TableCell colSpan={canManageSales ? 9 : 8} className="text-center py-8">
+                  <TableCell colSpan={canManageSales ? 10 : 9} className="text-center py-8">
                         Loading daily ledger data...
                     </TableCell>
                 </TableRow>
             ) : unifiedRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={canManageSales ? 9 : 8} className="text-center text-gray-700 dark:text-gray-300 py-8">
+                  <TableCell colSpan={canManageSales ? 10 : 9} className="text-center text-gray-700 dark:text-gray-300 py-8">
                         No activity recorded for this date.
                     </TableCell>
                 </TableRow>
@@ -479,6 +546,22 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
                         ? "You" 
                         : (salespersonMap[row.salespersonId] || "Unknown")}
                 </TableCell>
+                <TableCell className="text-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-lime-700 dark:text-lime-400 hover:text-lime-800 hover:bg-lime-50 dark:hover:bg-lime-950/40"
+                    title="Print / View Receipt"
+                    onClick={() => handlePrintReceipt(row)}
+                    disabled={loadingReceiptId === row.id}
+                  >
+                    {loadingReceiptId === row.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Printer className="w-4 h-4" />
+                    )}
+                  </Button>
+                </TableCell>
                 {canManageSales && (
                     <TableCell>
                         {row.type === 'sale' ? <SaleActions saleId={row.id} /> : "-"}
@@ -490,6 +573,23 @@ export function DailySales({ userId, canManageSales = false }: DailySalesProps) 
           </Table>
         </div>
       </CardContent>
+
+      {/* Printable Receipt Modal */}
+      <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-5 h-5 text-lime-600" />
+              <span>Transaction Receipt</span>
+            </DialogTitle>
+          </DialogHeader>
+          {selectedReceipt && (
+            <div className="space-y-4">
+              <POSReceipt receipt={selectedReceipt} compact={false} />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

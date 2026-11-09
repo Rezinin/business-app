@@ -42,6 +42,20 @@ export function CheckoutForm({ onClose }: CheckoutFormProps) {
   const [salespersonName, setSalespersonName] = useState<string>("Current User");
   const supabase = createClient();
   const submittingRef = useRef(false);
+  const saleConfirmedRef = useRef(false);
+
+  useEffect(() => {
+    saleConfirmedRef.current = saleConfirmed;
+  }, [saleConfirmed]);
+
+  // Clean up cart only when the checkout form closes or unmounts after a confirmed sale
+  useEffect(() => {
+    return () => {
+      if (saleConfirmedRef.current) {
+        clearCart();
+      }
+    };
+  }, [clearCart]);
 
   const total = getTotal();
   const parsedAmountPaid = Number.isFinite(Number(amountPaid)) ? Number(amountPaid) : 0;
@@ -192,7 +206,6 @@ export function CheckoutForm({ onClose }: CheckoutFormProps) {
 
       setReceiptData(offlineResult.receipt);
       setSaleConfirmed(true);
-      clearCart();
       setLoading(false);
       submittingRef.current = false;
       return;
@@ -212,8 +225,6 @@ export function CheckoutForm({ onClose }: CheckoutFormProps) {
       if (response.receipt?.receipt_data) {
         setReceiptData(response.receipt.receipt_data);
         setSaleConfirmed(true);
-        // Clear active cart immediately upon confirmation so no duplicates can ever occur
-        clearCart();
         router.refresh();
       }
     } catch (error: unknown) {
@@ -231,7 +242,6 @@ export function CheckoutForm({ onClose }: CheckoutFormProps) {
 
       setReceiptData(offlineResult.receipt);
       setSaleConfirmed(true);
-      clearCart();
     } finally {
       setLoading(false);
       submittingRef.current = false;
@@ -272,9 +282,9 @@ export function CheckoutForm({ onClose }: CheckoutFormProps) {
       return (
         <div className="space-y-4">
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-blue-800 dark:text-blue-200 text-sm">
-            ℹ️ Review order details. You can print or download the receipt or confirm the sale below.
+            ℹ️ <strong>Order Draft Preview:</strong> Review line items, customer details, and totals. Click <strong>&quot;Confirm &amp; Record Sale&quot;</strong> below to commit the transaction and print the official receipt.
           </div>
-          <POSReceipt receipt={receiptData} compact={false} />
+          <POSReceipt receipt={receiptData} compact={true} />
           <div className="flex gap-2">
             <Button
               onClick={() => {
