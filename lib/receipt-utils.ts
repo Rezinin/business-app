@@ -26,6 +26,9 @@ export interface ReceiptDataPayload {
   customer_phone?: string;
   salesperson_name: string;
   status: string;
+  previous_balance?: number;
+  remaining_balance?: number;
+  receipt_type?: "sale" | "debt_payment";
 }
 
 /**
@@ -183,11 +186,12 @@ export function buildDebtPaymentReceiptData(
   const { date, time } = formatReceiptDateTime();
   const paymentItemName =
     remainingBalance <= 0
-      ? `Debt Clearance (Full Settlement - Was: ₵${previousBalance.toFixed(2)})`
-      : `Debt Payment (Prev: ₵${previousBalance.toFixed(2)} | Rem: ₵${remainingBalance.toFixed(2)})`;
+      ? `Debt Clearance (Full Settlement)`
+      : `Debt Repayment`;
 
   return {
     receipt_number: generateReceiptNumber().replace("REC-", "REC-PAY-"),
+    receipt_type: "debt_payment",
     business_name: BUSINESS_CONFIG.name,
     business_address: BUSINESS_CONFIG.address,
     business_phone: BUSINESS_CONFIG.phone,
@@ -208,6 +212,8 @@ export function buildDebtPaymentReceiptData(
     customer_name: customerName,
     customer_phone: customerPhone,
     salesperson_name: salespersonName,
-    status: remainingBalance <= 0 ? "Debt Paid in Full" : `Partial Payment (Owed: ₵${remainingBalance.toFixed(2)})`,
+    status: remainingBalance <= 0 ? "Debt Paid in Full" : `Partial Payment (Remaining: ₵${remainingBalance.toFixed(2)})`,
+    previous_balance: previousBalance,
+    remaining_balance: remainingBalance,
   };
 }

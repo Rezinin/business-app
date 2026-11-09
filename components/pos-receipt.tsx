@@ -30,6 +30,9 @@ interface ReceiptData {
   customer_phone?: string;
   salesperson_name: string;
   status: string;
+  previous_balance?: number;
+  remaining_balance?: number;
+  receipt_type?: "sale" | "debt_payment";
 }
 
 interface POSReceiptProps {
@@ -49,6 +52,10 @@ function escapeHtml(value: string) {
 
 function buildPrintableReceiptHtml(receipt: ReceiptData) {
   const cleanedReceiptNumber = receipt.receipt_number.replace(/^PREVIEW-?/i, "");
+  const isDebtReceipt =
+    receipt.receipt_type === "debt_payment" ||
+    receipt.receipt_number.startsWith("REC-PAY-") ||
+    receipt.status?.toLowerCase().includes("debt");
   const initials = (receipt.business_name || "")
     .split(/\s+/)
     .filter(Boolean)
@@ -135,7 +142,7 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
           ${receipt.business_phone ? `<div class="subtle">Tel: ${escapeHtml(receipt.business_phone)}</div>` : ""}
 
           <div class="divider">
-            <div><strong>SALES RECEIPT</strong></div>
+            <div style="font-size:13px; font-weight:800; letter-spacing:0.5px;">${isDebtReceipt ? "DEBT PAYMENT RECEIPT" : "SALES RECEIPT"}</div>
             <div>Receipt #${escapeHtml(cleanedReceiptNumber)}</div>
             <div>${escapeHtml(receipt.date)} ${escapeHtml(receipt.time)}</div>
           </div>
@@ -144,9 +151,9 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
             <table>
               <thead>
                 <tr>
-                  <th class="item-name">Item</th>
+                  <th class="item-name">${isDebtReceipt ? "Payment Details" : "Item"}</th>
                   <th class="item-qty">Qty</th>
-                  <th class="item-price">Price</th>
+                  <th class="item-price">Paid</th>
                   <th class="item-total">Total</th>
                 </tr>
               </thead>
@@ -156,18 +163,40 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
             </table>
           </div>
 
-          <div class="section totals">
-            <div class="row"><span class="label">Subtotal</span><span class="value">₵${receipt.subtotal.toFixed(2)}</span></div>
-            ${receipt.tax && receipt.tax > 0 ? `<div class="row"><span class="label">Tax</span><span class="value">₵${receipt.tax.toFixed(2)}</span></div>` : ""}
-            <div class="row totals"><span class="label grand">TOTAL</span><span class="value grand">₵${receipt.total.toFixed(2)}</span></div>
-          </div>
+          ${isDebtReceipt ? `
+            <div class="section" style="border:1px dashed #222; padding:6px; margin:8px 0; background:#f9f9f9;">
+              <div style="font-weight:700; text-align:center; margin-bottom:4px; font-size:10px; text-transform:uppercase;">Debt Account Statement</div>
+              <div class="row"><span>Previous Debt</span><span>₵${(receipt.previous_balance !== undefined ? receipt.previous_balance : receipt.total).toFixed(2)}</span></div>
+              <div class="row"><span>Amount Paid Today</span><span style="font-weight:700;">₵${receipt.amount_paid.toFixed(2)}</span></div>
+              <div class="row grand" style="border-top:1px solid #222; padding-top:4px; margin-top:4px;">
+                <span>REMAINING BALANCE</span>
+                <span>₵${(receipt.remaining_balance !== undefined ? receipt.remaining_balance : 0).toFixed(2)}</span>
+              </div>
+              <div class="row" style="margin-top:4px;">
+                <span>Status</span>
+                <span style="font-weight:700; color:${receipt.remaining_balance !== undefined && receipt.remaining_balance <= 0 ? '#15803d' : '#b91c1c'};">
+                  ${escapeHtml(receipt.status)}
+                </span>
+              </div>
+              <div class="row" style="margin-top:2px;">
+                <span>Payment Method</span>
+                <span>${escapeHtml(receipt.payment_method)}</span>
+              </div>
+            </div>
+          ` : `
+            <div class="section totals">
+              <div class="row"><span class="label">Subtotal</span><span class="value">₵${receipt.subtotal.toFixed(2)}</span></div>
+              ${receipt.tax && receipt.tax > 0 ? `<div class="row"><span class="label">Tax</span><span class="value">₵${receipt.tax.toFixed(2)}</span></div>` : ""}
+              <div class="row totals"><span class="label grand">TOTAL</span><span class="value grand">₵${receipt.total.toFixed(2)}</span></div>
+            </div>
 
-          <div class="section">
-            <div class="row"><span>Payment Method</span><span>${escapeHtml(receipt.payment_method)}</span></div>
-            <div class="row"><span>Amount Paid</span><span>₵${receipt.amount_paid.toFixed(2)}</span></div>
-            ${receipt.change !== undefined && receipt.change > 0 ? `<div class="row"><strong>Change</strong><strong>₵${receipt.change.toFixed(2)}</strong></div>` : ""}
-            ${receipt.status === "pending" ? `<div class="row status"><span>STATUS</span><span>CREDIT (PENDING PAYMENT)</span></div>` : ""}
-          </div>
+            <div class="section">
+              <div class="row"><span>Payment Method</span><span>${escapeHtml(receipt.payment_method)}</span></div>
+              <div class="row"><span>Amount Paid</span><span>₵${receipt.amount_paid.toFixed(2)}</span></div>
+              ${receipt.change !== undefined && receipt.change > 0 ? `<div class="row"><strong>Change</strong><strong>₵${receipt.change.toFixed(2)}</strong></div>` : ""}
+              ${receipt.status === "pending" ? `<div class="row status"><span>STATUS</span><span>CREDIT (PENDING PAYMENT)</span></div>` : ""}
+            </div>
+          `}
 
           ${(receipt.customer_name || receipt.salesperson_name) ? `
             <div class="section">
@@ -190,6 +219,10 @@ function buildPrintableReceiptHtml(receipt: ReceiptData) {
 export function POSReceipt({ receipt, compact = false, onPrinted }: POSReceiptProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [printed, setPrinted] = useState(false);
+  const isDebtReceipt =
+    receipt.receipt_type === "debt_payment" ||
+    receipt.receipt_number.startsWith("REC-PAY-") ||
+    receipt.status?.toLowerCase().includes("debt");
 
   const handlePrint = () => {
     const printWindow = window.open("", "", "width=400,height=600");
@@ -232,7 +265,9 @@ export function POSReceipt({ receipt, compact = false, onPrinted }: POSReceiptPr
         )}
 
         <div className="border-t-2 border-b-2 border-slate-800 py-2 text-center text-sm text-slate-900">
-          <div className="font-bold">SALES RECEIPT</div>
+          <div className="font-bold text-base">
+            {isDebtReceipt ? "DEBT PAYMENT RECEIPT" : "SALES RECEIPT"}
+          </div>
           <div>Receipt #{receipt.receipt_number}</div>
           <div>{receipt.date} {receipt.time}</div>
         </div>
@@ -240,7 +275,7 @@ export function POSReceipt({ receipt, compact = false, onPrinted }: POSReceiptPr
         {/* Items */}
         <div className="my-3 text-slate-900">
           <div className="border-t border-slate-300 pt-1 pb-1 text-sm font-bold grid grid-cols-12 gap-0 mb-1">
-            <div className="col-span-6">Item</div>
+            <div className="col-span-6">{isDebtReceipt ? "Payment Details" : "Item"}</div>
             <div className="col-span-2 text-center px-2">Qty</div>
             <div className="col-span-2 text-right px-2">Price</div>
             <div className="col-span-2 text-right px-2">Total</div>
@@ -256,35 +291,80 @@ export function POSReceipt({ receipt, compact = false, onPrinted }: POSReceiptPr
           <div className="border-t border-slate-300 pt-1 mt-1" />
         </div>
 
-        {/* Totals */}
-        <div className="space-y-1 mb-3 text-slate-900">
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <span>Subtotal:</span>
-            <span className="text-right">₵{receipt.subtotal.toFixed(2)}</span>
-          </div>
-          {receipt.tax && receipt.tax > 0 && (
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <span>Tax:</span>
-              <span className="text-right">₵{receipt.tax.toFixed(2)}</span>
+        {/* Totals / Debt Statement */}
+        {isDebtReceipt ? (
+          <div className="p-3 my-3 bg-slate-50 border border-slate-300 rounded space-y-1.5 text-sm text-slate-900">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200 pb-1">
+              Debt Account Statement
             </div>
-          )}
-          <div className="grid grid-cols-2 gap-2 font-bold text-base border-t border-b border-slate-800 py-1">
-            <span>TOTAL:</span>
-            <span className="text-right">₵{receipt.total.toFixed(2)}</span>
+            <div className="grid grid-cols-2 gap-2">
+              <span>Previous Debt Balance:</span>
+              <span className="text-right">
+                ₵{(receipt.previous_balance !== undefined ? receipt.previous_balance : receipt.total).toFixed(2)}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 font-semibold">
+              <span>Amount Paid Today:</span>
+              <span className="text-right text-emerald-700">
+                ₵{receipt.amount_paid.toFixed(2)}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 font-bold text-base border-t border-slate-300 pt-1">
+              <span>Remaining Debt Balance:</span>
+              <span className={`text-right ${
+                receipt.remaining_balance !== undefined && receipt.remaining_balance <= 0
+                  ? "text-emerald-700"
+                  : "text-slate-950"
+              }`}>
+                ₵{(receipt.remaining_balance !== undefined ? receipt.remaining_balance : 0).toFixed(2)}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200">
+              <span>Status:</span>
+              <span className={`text-right font-bold ${
+                receipt.remaining_balance !== undefined && receipt.remaining_balance <= 0
+                  ? "text-emerald-700"
+                  : "text-amber-700"
+              }`}>
+                {receipt.status}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <span>Payment Method:</span>
+              <span className="text-right">{receipt.payment_method}</span>
+            </div>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="space-y-1 mb-3 text-slate-900">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <span>Subtotal:</span>
+                <span className="text-right">₵{receipt.subtotal.toFixed(2)}</span>
+              </div>
+              {receipt.tax && receipt.tax > 0 && (
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <span>Tax:</span>
+                  <span className="text-right">₵{receipt.tax.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2 font-bold text-base border-t border-b border-slate-800 py-1">
+                <span>TOTAL:</span>
+                <span className="text-right">₵{receipt.total.toFixed(2)}</span>
+              </div>
+            </div>
 
-        {/* Payment Info */}
-        <div className="space-y-1 mb-3 border-t border-slate-200 pt-1 text-sm text-slate-900">
-          <div>Payment Method: {receipt.payment_method}</div>
-          <div>Amount Paid: ₵{receipt.amount_paid.toFixed(2)}</div>
-          {receipt.change !== undefined && receipt.change > 0 && (
-            <div className="font-bold">Change: ₵{receipt.change.toFixed(2)}</div>
-          )}
-          {receipt.status === "pending" && (
-            <div className="font-bold text-red-700">STATUS: CREDIT (PENDING PAYMENT)</div>
-          )}
-        </div>
+            <div className="space-y-1 mb-3 border-t border-slate-200 pt-1 text-sm text-slate-900">
+              <div>Payment Method: {receipt.payment_method}</div>
+              <div>Amount Paid: ₵{receipt.amount_paid.toFixed(2)}</div>
+              {receipt.change !== undefined && receipt.change > 0 && (
+                <div className="font-bold">Change: ₵{receipt.change.toFixed(2)}</div>
+              )}
+              {receipt.status === "pending" && (
+                <div className="font-bold text-red-700">STATUS: CREDIT (PENDING PAYMENT)</div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Customer & Salesperson Info */}
         {(receipt.customer_name || receipt.salesperson_name) && (

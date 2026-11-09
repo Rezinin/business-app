@@ -94,6 +94,7 @@ export interface ScannedProduct {
   id: string;
   name: string;
   sku: string;
+  barcode?: string;
   price: number;
   quantity: number;
   description?: string;
@@ -136,9 +137,10 @@ export function useHardwareBarcodeScanner<T extends ScannedProduct = ScannedProd
         bufferRef.current = "";
 
         if (barcode.length >= 2) {
-          // Look up matching product in inventory by SKU (case-insensitive) or exact ID
+          // Look up matching product in inventory by Barcode, SKU, or exact ID
           const match = inventory.find(
             (item) =>
+              (item.barcode && item.barcode.toLowerCase() === barcode.toLowerCase()) ||
               (item.sku && item.sku.toLowerCase() === barcode.toLowerCase()) ||
               item.id === barcode ||
               (item.name && item.name.toLowerCase() === barcode.toLowerCase())
@@ -219,6 +221,7 @@ export function CameraBarcodeScanner<T extends ScannedProduct = ScannedProduct>(
       const code = barcodeRaw.trim();
       const match = inventory.find(
         (item) =>
+          (item.barcode && item.barcode.toLowerCase() === code.toLowerCase()) ||
           (item.sku && item.sku.toLowerCase() === code.toLowerCase()) ||
           item.id === code ||
           (item.name && item.name.toLowerCase() === code.toLowerCase())
@@ -528,6 +531,7 @@ export function LinkBarcodeDialog<T extends ScannedProduct = ScannedProduct>({
 
   // New product form states
   const [newName, setNewName] = useState("");
+  const [newSku, setNewSku] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newQuantity, setNewQuantity] = useState("10");
   const [creating, setCreating] = useState(false);
@@ -557,7 +561,7 @@ export function LinkBarcodeDialog<T extends ScannedProduct = ScannedProduct>({
         return;
       }
       playScannerBeep(true);
-      onLinkedAndAdded({ ...product, sku: barcode });
+      onLinkedAndAdded({ ...product, barcode });
       onOpenChange(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to link barcode");
@@ -583,7 +587,8 @@ export function LinkBarcodeDialog<T extends ScannedProduct = ScannedProduct>({
     try {
       const formData = new FormData();
       formData.append("name", newName.trim());
-      formData.append("sku", barcode);
+      formData.append("barcode", barcode);
+      formData.append("sku", newSku.trim());
       formData.append("price", priceNum.toString());
       formData.append("quantity", (parseInt(newQuantity) || 0).toString());
       formData.append("description", "");
@@ -597,6 +602,7 @@ export function LinkBarcodeDialog<T extends ScannedProduct = ScannedProduct>({
       onLinkedAndAdded(res.product as unknown as T);
       onOpenChange(false);
       setNewName("");
+      setNewSku("");
       setNewPrice("");
       setNewQuantity("10");
     } catch (err: unknown) {
@@ -717,8 +723,10 @@ export function LinkBarcodeDialog<T extends ScannedProduct = ScannedProduct>({
                         <div className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-lime-700 dark:group-hover:text-lime-400">
                           {item.name}
                         </div>
-                        <div className="text-gray-400 text-[10px]">
-                          Current SKU: {item.sku || "None (unlinked)"}
+                        <div className="text-gray-400 text-[10px] space-x-1.5">
+                          <span>SKU: {item.sku || "None"}</span>
+                          <span>&bull;</span>
+                          <span>Barcode: {item.barcode || "None (unlinked)"}</span>
                         </div>
                       </div>
                       <div className="font-bold text-lime-700 dark:text-lime-400">
@@ -754,6 +762,26 @@ export function LinkBarcodeDialog<T extends ScannedProduct = ScannedProduct>({
                     required
                     autoFocus
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">Scanned Barcode</label>
+                    <Input
+                      value={barcode}
+                      disabled
+                      className="h-9 text-xs mt-1 font-mono bg-muted text-muted-foreground"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">Internal SKU (Optional)</label>
+                    <Input
+                      placeholder="e.g. GUI-625 (auto if blank)"
+                      value={newSku}
+                      onChange={(e) => setNewSku(e.target.value)}
+                      className="h-9 text-xs mt-1 font-mono"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">

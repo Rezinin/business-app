@@ -28,7 +28,9 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
   const [isAdding, setIsAdding] = useState(false);
   const [addMode, setAddMode] = useState<"new" | "restock">("new");
   const [newSku, setNewSku] = useState("");
+  const [newBarcode, setNewBarcode] = useState("");
   const [editSku, setEditSku] = useState("");
+  const [editBarcode, setEditBarcode] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [savingPolicy, setSavingPolicy] = useState(false)
@@ -43,7 +45,8 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
 
   const filteredRestockInventory = inventory.filter((item) =>
     item.name.toLowerCase().includes(restockSearchTerm.toLowerCase()) ||
-    item.sku.toLowerCase().includes(restockSearchTerm.toLowerCase())
+    (item.sku && item.sku.toLowerCase().includes(restockSearchTerm.toLowerCase())) ||
+    (item.barcode && item.barcode.toLowerCase().includes(restockSearchTerm.toLowerCase()))
   );
 
   const toggleDescription = (id: string) => {
@@ -60,7 +63,8 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
 
   const filteredInventory = inventory.filter((item) => {
       const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+                            (item.sku && item.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                            (item.barcode && item.barcode.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesStock = showOnlyLowStock ? item.quantity <= lowStockThreshold : true;
       return matchesSearch && matchesStock;
     });
@@ -70,6 +74,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
       if (!isAdding) {
         setAddMode("new");
         setNewSku("");
+        setNewBarcode("");
         setIsAdding(true);
       } else {
         setIsAdding(false);
@@ -232,6 +237,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                            setError(result.error || "Failed to create product");
                          } else {
                            setNewSku("");
+                           setNewBarcode("");
                            setIsAdding(false);
                          }
                       } catch (err: any) {
@@ -252,16 +258,25 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <Label htmlFor="sku">SKU / Barcode</Label>
-                          <BarcodeScanCaptureButton onCaptured={(code) => setNewSku(code)} />
+                          <Label htmlFor="barcode">Barcode (Scannable)</Label>
+                          <BarcodeScanCaptureButton onCaptured={(code) => setNewBarcode(code)} />
                         </div>
+                        <Input
+                          id="barcode"
+                          name="barcode"
+                          value={newBarcode}
+                          onChange={(e) => setNewBarcode(e.target.value)}
+                          placeholder="e.g. 5000112630792 or scan"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="sku">Internal SKU</Label>
                         <Input
                           id="sku"
                           name="sku"
                           value={newSku}
                           onChange={(e) => setNewSku(e.target.value)}
-                          required
-                          placeholder="e.g. 5000112630792 or scan"
+                          placeholder="e.g. GUI-625 (auto if blank)"
                         />
                       </div>
                       <div className="space-y-2">
@@ -445,6 +460,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                       } else {
                         setIsEditing(null);
                         setEditSku("");
+                        setEditBarcode("");
                       }
                     } catch (err: any) {
                       setError(err.message || "Failed to update product");
@@ -465,9 +481,18 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label>SKU / Barcode</Label>
-                        <BarcodeScanCaptureButton onCaptured={(code) => setEditSku(code)} />
+                        <Label>Barcode (Scannable)</Label>
+                        <BarcodeScanCaptureButton onCaptured={(code) => setEditBarcode(code)} />
                       </div>
+                      <Input
+                        name="barcode"
+                        value={editBarcode}
+                        onChange={(e) => setEditBarcode(e.target.value)}
+                        placeholder="Scan or enter barcode"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Internal SKU</Label>
                       <Input
                         name="sku"
                         value={editSku}
@@ -490,7 +515,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                   </div>
                   <div className="flex gap-2">
                     <Button type="submit">Save Changes</Button>
-                    <Button type="button" variant="outline" onClick={() => { setIsEditing(null); setEditSku(""); setError(null); }}>
+                    <Button type="button" variant="outline" onClick={() => { setIsEditing(null); setEditSku(""); setEditBarcode(""); setError(null); }}>
                       Cancel
                     </Button>
                   </div>
@@ -516,7 +541,14 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                             {item.description}
                         </div>
                     )}
-                    <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-1">
+                      <span>SKU: <span className="font-mono text-foreground font-medium">{item.sku || "—"}</span></span>
+                      {item.barcode && (
+                        <span className="inline-flex items-center gap-1 font-mono text-xs bg-muted px-2 py-0.5 rounded border border-border">
+                          #{item.barcode}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-2 space-x-4 text-sm">
                       <span>Price: ₵{item.price}</span>
                       <span>Qty: {item.quantity}</span>
@@ -532,7 +564,7 @@ export function InventoryManager({ inventory, stats, canAdd = true, canDelete = 
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setIsEditing(item.id); setEditSku(item.sku || ""); setError(null); }}>
+                          <DropdownMenuItem onClick={() => { setIsEditing(item.id); setEditSku(item.sku || ""); setEditBarcode(item.barcode || ""); setError(null); }}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>

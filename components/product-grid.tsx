@@ -14,6 +14,7 @@ export interface InventoryItem {
   id: string;
   name: string;
   sku: string;
+  barcode?: string;
   price: number;
   quantity: number;
   description?: string;
@@ -46,9 +47,17 @@ function ProductCard({ item }: { item: InventoryItem }) {
             {item.description}
           </div>
         )}
-        <div className="flex justify-between items-center text-sm mb-1.5">
-          <span className="text-xs text-muted-foreground">SKU: {item.sku}</span>
-          <span className="text-base font-bold text-lime-700 dark:text-lime-400">₵{item.price.toFixed(2)}</span>
+        <div className="flex justify-between items-center text-sm mb-1.5 gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap text-xs text-muted-foreground min-w-0">
+            {item.sku && <span>SKU: {item.sku}</span>}
+            {item.sku && item.barcode && <span>&bull;</span>}
+            {item.barcode && (
+              <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded truncate max-w-[120px]" title={`Barcode: ${item.barcode}`}>
+                #{item.barcode}
+              </span>
+            )}
+          </div>
+          <span className="text-base font-bold text-lime-700 dark:text-lime-400 shrink-0">₵{item.price.toFixed(2)}</span>
         </div>
         <div className="text-xs mb-3 flex items-center justify-between">
           <span className="text-muted-foreground">Stock:</span>
@@ -134,7 +143,8 @@ export function ProductGrid({
   const filteredInventory = items.filter(
     (item) =>
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchTerm.toLowerCase())
+      (item.sku && item.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.barcode && item.barcode.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   // Quick-Pick: Top 8 items with stock

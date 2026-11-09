@@ -122,23 +122,40 @@ export async function createProduct(formData: FormData) {
   }
   
   const name = formData.get("name") as string;
-  const sku = formData.get("sku") as string;
+  const sku = (formData.get("sku") as string || "").trim();
+  const barcode = (formData.get("barcode") as string || "").trim();
   const price = parseFloat(formData.get("price") as string);
   const quantity = parseInt(formData.get("quantity") as string);
-  const description = formData.get("description") as string;
+  const description = (formData.get("description") as string || "").trim();
 
-  const { data, error } = await supabase.from("inventory").insert({
+  // If SKU is empty, auto-generate a clean internal code or use barcode
+  const finalSku = sku || (barcode ? `SKU-${barcode.slice(-6)}` : `SKU-${Date.now().toString().slice(-6)}`);
+
+  const insertPayload: Record<string, any> = {
     name,
-    sku,
+    sku: finalSku,
     price,
     quantity,
     description,
-  }).select().single();
+  };
+  if (barcode) {
+    insertPayload.barcode = barcode;
+  }
+
+  let { data, error } = await supabase.from("inventory").insert(insertPayload).select().single();
+
+  if (error && error.message?.includes("barcode")) {
+    // Graceful fallback if barcode column does not exist yet
+    delete insertPayload.barcode;
+    const fallback = await supabase.from("inventory").insert(insertPayload).select().single();
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     console.error("Error creating product:", error);
     if (error.code === "23505") {
-      return { success: false, error: "A product with this SKU already exists." };
+      return { success: false, error: "A product with this SKU or Barcode already exists." };
     }
     return { success: false, error: error.message || "Failed to create product" };
   }
@@ -153,20 +170,38 @@ export async function updateProduct(formData: FormData) {
   
   const id = formData.get("id") as string;
   const name = formData.get("name") as string;
-  const sku = formData.get("sku") as string;
+  const sku = (formData.get("sku") as string || "").trim();
+  const barcode = (formData.get("barcode") as string || "").trim();
   const price = parseFloat(formData.get("price") as string);
   const quantity = parseInt(formData.get("quantity") as string);
   const description = formData.get("description") as string;
 
-  const { error } = await supabase
+  const updatePayload: Record<string, any> = {
+    name,
+    sku,
+    price,
+    quantity,
+    description,
+  };
+  if (barcode !== undefined) {
+    updatePayload.barcode = barcode || null;
+  }
+
+  let { error } = await supabase
     .from("inventory")
-    .update({ name, sku, price, quantity, description })
+    .update(updatePayload)
     .eq("id", id);
+
+  if (error && error.message?.includes("barcode")) {
+    delete updatePayload.barcode;
+    const fallback = await supabase.from("inventory").update(updatePayload).eq("id", id);
+    error = fallback.error;
+  }
 
   if (error) {
     console.error("Error updating product:", error);
     if (error.code === "23505") {
-      return { success: false, error: "A product with this SKU already exists." };
+      return { success: false, error: "A product with this SKU or Barcode already exists." };
     }
     return { success: false, error: error.message || "Failed to update product" };
   }
@@ -231,10 +266,19 @@ export async function assignProductBarcode(productId: string, barcode: string) {
     return { success: false, error: "Permission denied: Only managers or authorized salespersons can pair barcodes." };
   }
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from("inventory")
-    .update({ sku: trimmed })
+    .update({ barcode: trimmed })
     .eq("id", productId);
+
+  if (error && error.message?.includes("barcode")) {
+    // Graceful fallback if barcode column does not exist yet
+    const fallback = await supabase
+      .from("inventory")
+      .update({ sku: trimmed })
+      .eq("id", productId);
+    error = fallback.error;
+  }
 
   if (error) {
     console.error("Error assigning product barcode:", error);

@@ -34,12 +34,16 @@ CREATE POLICY "Managers and Devs can update any profile" ON profiles
   );
 
 -- ------------------------------------------------------------------------------
--- 2. INVENTORY: Barcode SKU column & Granular Permissions
+-- 2. INVENTORY: Separate SKU (Internal Code) & Barcode (Universal Scanner)
 -- ------------------------------------------------------------------------------
 ALTER TABLE inventory 
 ADD COLUMN IF NOT EXISTS sku TEXT;
 
--- Create unique index on SKU if not exists (allows nulls for unbarcoded items)
+ALTER TABLE inventory 
+ADD COLUMN IF NOT EXISTS barcode TEXT;
+
+-- Create unique index on Barcode & SKU (allows nulls for unbarcoded items)
+CREATE UNIQUE INDEX IF NOT EXISTS inventory_barcode_unique_idx ON inventory (barcode) WHERE barcode IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS inventory_sku_unique_idx ON inventory (sku) WHERE sku IS NOT NULL;
 
 -- Enable RLS on inventory
@@ -162,5 +166,5 @@ SELECT
   data_type 
 FROM information_schema.columns 
 WHERE table_name IN ('profiles', 'inventory', 'inventory_settings', 'receipts')
-  AND column_name IN ('can_pair_barcodes', 'can_add_products', 'blocked', 'verified', 'sku', 'allow_negative_inventory', 'receipt_number')
+  AND column_name IN ('can_pair_barcodes', 'can_add_products', 'blocked', 'verified', 'sku', 'barcode', 'allow_negative_inventory', 'receipt_number')
 ORDER BY table_name, column_name;
