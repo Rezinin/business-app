@@ -69,27 +69,32 @@ CREATE POLICY "Enable insert with permission check" ON inventory
     )
   );
 
--- Update policy: Managers OR authorized Salespersons (for barcode pairing or restock)
+-- Update policy: All authenticated users (salespersons and managers) can update inventory (e.g. reducing quantity during sales)
 DROP POLICY IF EXISTS "Enable update for inventory" ON inventory;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON inventory;
 DROP POLICY IF EXISTS "Enable update with permission check" ON inventory;
-CREATE POLICY "Enable update with permission check" ON inventory
+CREATE POLICY "Enable update for authenticated users" ON inventory
   FOR UPDATE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles 
-      WHERE id = auth.uid() 
-      AND (role = 'manager' OR can_pair_barcodes = true OR can_add_products = true)
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM profiles 
-      WHERE id = auth.uid() 
-      AND (role = 'manager' OR can_pair_barcodes = true OR can_add_products = true)
-    )
-  );
+  USING (true)
+  WITH CHECK (true);
+
+-- Atomic inventory deduction function (SECURITY DEFINER ensures salespersons can always decrement stock upon sale)
+CREATE OR REPLACE FUNCTION decrement_inventory(row_id UUID, amount INT)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE inventory
+  SET quantity = quantity - amount
+  WHERE id = row_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION decrement_inventory(UUID, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION decrement_inventory(UUID, INT) TO anon;
 
 -- Delete policy: Managers only
 DROP POLICY IF EXISTS "Enable delete for authenticated users" ON inventory;

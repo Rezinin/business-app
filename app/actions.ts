@@ -426,7 +426,10 @@ export async function recordSale(
   if (inventoryError) {
      const { data: item } = await supabase.from("inventory").select("quantity").eq("id", productId).single();
      if (item) {
-         await supabase.from("inventory").update({ quantity: item.quantity - quantity }).eq("id", productId);
+         const { error: updateErr } = await supabase.from("inventory").update({ quantity: item.quantity - quantity }).eq("id", productId);
+         if (updateErr) {
+           console.error("Error decrementing inventory:", updateErr);
+         }
      }
   }
 
@@ -911,7 +914,10 @@ export async function recordMultipleSale(data: {
     if (inventoryError) {
        const { data: invItem } = await supabase.from("inventory").select("quantity").eq("id", item.productId).single();
        if (invItem) {
-           await supabase.from("inventory").update({ quantity: invItem.quantity - item.quantity }).eq("id", item.productId);
+           const { error: updateErr } = await supabase.from("inventory").update({ quantity: invItem.quantity - item.quantity }).eq("id", item.productId);
+           if (updateErr) {
+             console.error(`Error decrementing inventory for ${item.productName}:`, updateErr);
+           }
        }
     }
   }
